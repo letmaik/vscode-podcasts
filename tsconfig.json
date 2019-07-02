@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "es6",
+        "outDir": "out",
+        "lib": [
+            "es6"
+        ],
+        "allowJs": true,
+        "sourceMap": true,
+        "rootDir": ".",
+        "alwaysStrict": true,
+        "strictNullChecks": true,
+        "forceConsistentCasingInFileNames": true,
+        "experimentalDecorators": true
+    },
+    "include": [
+        "src/**/*"
+    ]
+}
