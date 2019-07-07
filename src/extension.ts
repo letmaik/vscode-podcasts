@@ -33,7 +33,16 @@ interface SearchConfiguration {
 
 interface Configuration {
     feeds: {[title: string]: string} // title -> URL
+    player: string | undefined
     search: SearchConfiguration
+}
+
+const COMMAND_MAPPING = {
+    'pause': audio.Command.PAUSE,
+    'skipBackward': audio.Command.SKIP_BACKWARD,
+    'skipForward': audio.Command.SKIP_FORWARD,
+    'slowdown': audio.Command.SLOWDOWN,
+    'speedup': audio.Command.SPEEDUP,
 }
 
 function getConfig(): Configuration {
@@ -41,6 +50,7 @@ function getConfig(): Configuration {
     const searchCfg = workspace.getConfiguration('podcasts.search')
     return {
         feeds: rootCfg.get<{[title: string]: string}>('feeds')!,
+        player: rootCfg.get<string>('player'),
         search: {
             genres: searchCfg.get<string[]>('genres')!,
             sortByDate: searchCfg.get<boolean>('sortByDate')!,
@@ -60,14 +70,24 @@ export async function activate(context: ExtensionContext) {
 
     const log = outputChannel.appendLine
 
-    const cfg = getConfig()
+    let cfg = getConfig()
 
-    const player = new audio.Player({}, log)
+    const player = new audio.Player({
+        player: cfg.player,
+        supportDir: context.asAbsolutePath('extra')
+    }, log)
 
     const audioStorageDir = path.join(context.globalStoragePath, 'audio')
     await mkdirp(audioStorageDir)
 
     // TODO allow to add podcasts from search to the config
+
+    workspace.onDidChangeConfiguration(e => {
+        cfg = getConfig()
+        if (e.affectsConfiguration(NAMESPACE + '.player')) {
+            player.setPlayer(cfg.player)
+        }
+    })
 
     commands.registerCommand(NAMESPACE + '.main', async () => {
         // TODO go to main menu dropdown
@@ -138,6 +158,17 @@ export async function activate(context: ExtensionContext) {
             window.showErrorMessage(e.message)
         }
     }))
+
+    for (const cmdName of Object.keys(COMMAND_MAPPING)) {
+        disposables.push(commands.registerCommand(NAMESPACE + '.' + cmdName, async () => {
+            try {
+                player.sendCommand(COMMAND_MAPPING[cmdName])
+            } catch (e) {
+                console.error(e)
+                window.showErrorMessage(e.message)
+            }
+        }))
+    }
 
     disposables.push(commands.registerCommand(NAMESPACE + '.stop', async () => {
         try {
