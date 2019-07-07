@@ -10,15 +10,20 @@ import mp3Duration = require('./3rdparty/mp3-duration.js')
 
 const IS_WINDOWS = platform === 'win32'
 
+// players with MP3 support
 const PLAYERS = [
-  'powershell', // Windows
-  'mplayer', // typically Linux, supports interactive control via stdin
-  'play', // typically Linux
-  'aplay', // Linux, built-in, no support for start position
-  'mpg123', // typically Linux, no support for start position in seconds (only frames)
-  'mpg321', // typically Linux, no support for start position in seconds (only frames)
-  'afplay', // macOS, built-in, no support for start position
-  'omxplayer', // Raspberry PI
+  // bundled = player is shipped by us
+  // external = player needs to be installed, e.g. via system package manager
+  // system = player ships with the operating system, no need to install
+  // offset = start position can be given as CLI argument
+  // interactive = can be controlled via redirected stdin, e.g. seeking, pausing
+  // status line = outputs a status line with the current playing position
+  'powershell', // Windows [bundled, offset, interactive (pause, seek, speed), status line]
+  'mplayer', // typically Linux [external, offset, interactive (pause, seek, speed), status line]
+  'play', // typically Linux [external, offset]
+  'mpg123', // typically Linux [external, status line]
+  'mpg321', // typically Linux [external, status line]
+  'afplay', // macOS [system]
 ]
 
 const PLAYER_ARGS = {
@@ -29,19 +34,24 @@ const PLAYER_ARGS = {
     '-ss', '%POSITION_S%',
     '%PATH%'
   ],
-  'play': [
-    '%PATH%',
-    'trim', '%POSITION_HHMMSS%'
-  ],
-  'omxplayer': [
-    '--pos', '%POSITION_HHMMSS%',
-    '%PATH%'
-  ],
   'powershell': [
     '%SUPPORT_DIR%' + path.sep + 'play.ps1',
     '-inputConfigPath', '%SUPPORT_DIR%' + path.sep + 'input.conf',
     '-ss', '%POSITION_S%',
-    '%PATH%']
+    '%PATH%'
+  ],
+  'play': [
+    '%PATH%',
+    'trim', '%POSITION_HHMMSS%'
+  ],
+  'mpg123': [
+    '-v',
+    '%PATH%'
+  ],
+  'mpg321': [
+    '-v',
+    '%PATH%'
+  ],
 }
 
 export enum Command {
@@ -53,20 +63,22 @@ export enum Command {
   STATUS
 }
 
+type CommandMap = {[cmd in Command]?: string}
+
 // see extra/input.conf
-const MPLAYER_COMMANDS: {[cmd in Command]: string | undefined} = {
+const MPLAYER_COMMANDS: CommandMap = {
   [Command.PAUSE]: 'p',
   [Command.SPEEDUP]: ']',
   [Command.SLOWDOWN]: '[',
   [Command.SKIP_FORWARD]: 'l',
   [Command.SKIP_BACKWARD]: 'k',
-  [Command.STATUS]: undefined // status is printed continuously
 }
 
-const POWERSHELL_COMMANDS = Object.assign({}, MPLAYER_COMMANDS)
-POWERSHELL_COMMANDS[Command.STATUS] = 's'
+const POWERSHELL_COMMANDS: CommandMap = Object.assign({
+  [Command.STATUS]: 's'
+}, MPLAYER_COMMANDS)
 
-const PLAYER_COMMANDS: {[player: string]: {[cmd in Command]: string | undefined}} = {
+const PLAYER_COMMANDS: {[player: string]: CommandMap} = {
   'mplayer': MPLAYER_COMMANDS,
   'powershell': POWERSHELL_COMMANDS
 }
@@ -77,6 +89,14 @@ const MPLAYER_STATUS_REGEX = /A:\s+(?<elapsed>[\d\.]+)\s+/
 const PLAYER_STATUS_REGEX: {[player: string]: RegExp} = {
   'mplayer': MPLAYER_STATUS_REGEX,
   'powershell': MPLAYER_STATUS_REGEX,
+
+  // > 1856+2513  00:44.54+01:00.31 --- 100=100 320 kb/s  960 B acc    0 clip p+0.00
+  // TODO
+  //'mpg123': //
+
+  // Frame#   334 [ 4035], Time: 00:08.01 [01:36.83],
+  // TODO
+  // 'mpg321': //
 }
 
 export interface Options {
