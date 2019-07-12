@@ -76,15 +76,38 @@
       "title": "Podcasts",
       "properties": {
         "podcasts.feeds": {
-          "type": "object",
+          "type": "array",
           "description": "Podcast feeds available via the Play command.",
-          "default": {
-            "Developer Tea": "https://rss.simplecast.com/podcasts/363/rss",
-            "Hanselminutes": "https://feeds.simplecast.com/gvtxUiIf",
-            "Programming Throwdown": "http://feeds.feedburner.com/ProgrammingThrowdown",
-            "The Changelog": "https://changelog.com/podcast/feed",
-            "Ratchet and The Geek": "https://feeds.simplecast.com/k0fI37e5"
-          }
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string", "description": "Title of the podcast" },
+              "url": { "type": "string", "description": "URL of the podcast feed" }
+            },
+            "required": ["title", "url"]
+          },
+          "default": [
+            {
+              "title": "Developer Tea",
+              "url": "https://rss.simplecast.com/podcasts/363/rss"
+            },
+            {
+              "title": "Hanselminutes",
+              "url": "https://feeds.simplecast.com/gvtxUiIf"
+            },
+            {
+              "title": "Programming Throwdown",
+              "url": "http://feeds.feedburner.com/ProgrammingThrowdown"
+            },
+            {
+              "title": "The Changelog",
+              "url": "https://changelog.com/podcast/feed"
+            },
+            {
+              "title": "Ratchet and The Geek",
+              "url": "https://feeds.simplecast.com/k0fI37e5"
+            }
+          ]
         },
         "podcasts.player": {
           "type": "string",
@@ -97,12 +120,12 @@
         },
         "podcasts.search.minimumLength": {
           "type": "integer",
-          "description": "Minimum audio length in minutes.",
+          "description": "Minimum episode length in minutes.",
           "default": 0
         },
         "podcasts.search.maximumLength": {
           "type": "integer",
-          "description": "Maximum audio length in minutes.",
+          "description": "Maximum episode length in minutes.",
           "default": 120
         },
         "podcasts.search.language": {
@@ -110,6 +133,7 @@
           "description": "Limit search results to a specific language. An empty string searches all languages.",
           "default": "English",
           "enum": [
+            "",
             "Afar",
             "Abkhazian",
             "Afrikaans",

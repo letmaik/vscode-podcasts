@@ -8,7 +8,7 @@ import * as parsePodcast_ from 'node-podcast-parser';
 
 import {mkdirp} from './3rdparty/util'
 import { NAMESPACE } from './constants'
-import * as audio from './audio';
+import { ShellPlayer, ShellPlayerCommand } from './shellPlayer';
 import * as listenNotes from './listen-notes'
 import { toHumanDuration, toHumanTimeAgo, downloadFile } from './util';
 
@@ -31,25 +31,30 @@ interface SearchConfiguration {
     maximumLength: number
 }
 
+interface Feed {
+    title: string
+    url: string
+}
+
 interface Configuration {
-    feeds: {[title: string]: string} // title -> URL
+    feeds: Feed[]
     player: string | undefined
     search: SearchConfiguration
 }
 
 const COMMAND_MAPPING = {
-    'pause': audio.Command.PAUSE,
-    'skipBackward': audio.Command.SKIP_BACKWARD,
-    'skipForward': audio.Command.SKIP_FORWARD,
-    'slowdown': audio.Command.SLOWDOWN,
-    'speedup': audio.Command.SPEEDUP,
+    'pause': ShellPlayerCommand.PAUSE,
+    'skipBackward': ShellPlayerCommand.SKIP_BACKWARD,
+    'skipForward': ShellPlayerCommand.SKIP_FORWARD,
+    'slowdown': ShellPlayerCommand.SLOWDOWN,
+    'speedup': ShellPlayerCommand.SPEEDUP,
 }
 
 function getConfig(): Configuration {
     const rootCfg = workspace.getConfiguration('podcasts')
     const searchCfg = workspace.getConfiguration('podcasts.search')
     return {
-        feeds: rootCfg.get<{[title: string]: string}>('feeds')!,
+        feeds: rootCfg.get<Feed[]>('feeds')!,
         player: rootCfg.get<string>('player'),
         search: {
             genres: searchCfg.get<string[]>('genres')!,
@@ -72,8 +77,8 @@ export async function activate(context: ExtensionContext) {
 
     let cfg = getConfig()
 
-    const player = new audio.Player({
-        player: cfg.player,
+    const player = new ShellPlayer({
+        playerPath: cfg.player,
         supportDir: context.asAbsolutePath('extra')
     }, log)
 
@@ -85,7 +90,7 @@ export async function activate(context: ExtensionContext) {
     workspace.onDidChangeConfiguration(e => {
         cfg = getConfig()
         if (e.affectsConfiguration(NAMESPACE + '.player')) {
-            player.setPlayer(cfg.player)
+            player.setPlayerPath(cfg.player)
         }
     })
 
@@ -102,9 +107,9 @@ export async function activate(context: ExtensionContext) {
 
     disposables.push(commands.registerCommand(NAMESPACE + '.play', async (feedUrl?: string) => {
         if (!feedUrl) {
-            const feedItems: PodcastItem[] = Object.keys(cfg.feeds).map(title => ({
-                label: title,
-                url: cfg.feeds[title]
+            const feedItems: PodcastItem[] = cfg.feeds.map(feed => ({
+                label: feed.title,
+                url: feed.url
             }));
 
             const feedPick = await window.showQuickPick(feedItems, {

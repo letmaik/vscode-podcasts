@@ -54,7 +54,7 @@ const PLAYER_ARGS = {
   ],
 }
 
-export enum Command {
+export enum ShellPlayerCommand {
   PAUSE,
   SPEEDUP,
   SLOWDOWN,
@@ -63,19 +63,19 @@ export enum Command {
   STATUS
 }
 
-type CommandMap = {[cmd in Command]?: string}
+type CommandMap = {[cmd in ShellPlayerCommand]?: string}
 
 // see extra/input.conf
 const MPLAYER_COMMANDS: CommandMap = {
-  [Command.PAUSE]: 'p',
-  [Command.SPEEDUP]: ']',
-  [Command.SLOWDOWN]: '[',
-  [Command.SKIP_FORWARD]: 'l',
-  [Command.SKIP_BACKWARD]: 'k',
+  [ShellPlayerCommand.PAUSE]: 'p',
+  [ShellPlayerCommand.SPEEDUP]: ']',
+  [ShellPlayerCommand.SLOWDOWN]: '[',
+  [ShellPlayerCommand.SKIP_FORWARD]: 'l',
+  [ShellPlayerCommand.SKIP_BACKWARD]: 'k',
 }
 
 const POWERSHELL_COMMANDS: CommandMap = Object.assign({
-  [Command.STATUS]: 's'
+  [ShellPlayerCommand.STATUS]: 's'
 }, MPLAYER_COMMANDS)
 
 const PLAYER_COMMANDS: {[player: string]: CommandMap} = {
@@ -99,14 +99,14 @@ const PLAYER_STATUS_REGEX: {[player: string]: RegExp} = {
   // 'mpg321': //
 }
 
-export interface Options {
-  player?: string
+export interface ShellPlayerOptions {
+  playerPath?: string
   supportDir: string
 }
 
-export class Player {
-  private player: string
-  private playerName: string
+export class ShellPlayer {
+  private playerPath: string
+  private playerName: string // player filename without extension, e.g. 'mplayer'
   private supportDir: string
 
   private process: ChildProcess | undefined
@@ -118,28 +118,28 @@ export class Player {
   private currentPosition: number | undefined // s
   private startUnixTimestamp: number // ms
 
-  constructor(opts: Options, private log: (msg: string) => void) {
+  constructor(opts: ShellPlayerOptions, private log: (msg: string) => void) {
     this.supportDir = opts.supportDir
-    this.setPlayer(opts.player)
+    this.setPlayerPath(opts.playerPath)
   }
 
-  setPlayer(player?: string) {
-    if (player) {
-      if (fs.existsSync(player) || findExec([player])) {
-        this.player = player
+  setPlayerPath(playerPath?: string) {
+    if (playerPath) {
+      if (fs.existsSync(playerPath) || findExec([playerPath])) {
+        this.playerPath = playerPath
       } else {
-        throw new Error(`Player "${player}" not found`)
+        throw new Error(`Player "${playerPath}" not found`)
       }
     } else {
-      this.player = findExec(PLAYERS)
-      if (!this.player) {
+      this.playerPath = findExec(PLAYERS)
+      if (!this.playerPath) {
         throw new Error(`No audio player found, tried: ${PLAYERS}`)
       }
     }
-    this.playerName = path.basename(this.player, path.extname(this.player))
-    this.log(`Player: ${this.player}`)
+    this.playerName = path.basename(this.playerPath, path.extname(this.playerPath))
+    this.log(`Player: ${this.playerPath}`)
     if (!this.supportsStartOffset()) {
-      this.log(`NOTE: ${this.player} only supports playing from the start of an audio file`)
+      this.log(`NOTE: ${this.playerPath} only supports playing from the start of an audio file`)
     }
   }
 
@@ -152,7 +152,7 @@ export class Player {
   }
 
   supportsStatusCommand() {
-    return this.supportsCommands() && PLAYER_COMMANDS[this.playerName][Command.STATUS] !== undefined
+    return this.supportsCommands() && PLAYER_COMMANDS[this.playerName][ShellPlayerCommand.STATUS] !== undefined
   }
  
   private getPlayerArgs(audioPath: string, startPosition: number) {
@@ -205,18 +205,18 @@ export class Player {
       throw new Error("No audio file specified")
     }
 
-    if (!this.player){
+    if (!this.playerPath){
       throw new Error("Couldn't find a suitable audio player")
     }
 
     this.duration = await this.getDuration(audioPath)
     const args = this.getPlayerArgs(audioPath, startPosition)
-    this.log(`Running ${this.player} ${args.join(' ')}`)
+    this.log(`Running ${this.playerPath} ${args.join(' ')}`)
 
     this.startUnixTimestamp = Date.now()
-    this.process = spawn(this.player, args, options)
+    this.process = spawn(this.playerPath, args, options)
     if (!this.process) {
-      throw new Error("Unable to spawn process with " + this.player)
+      throw new Error("Unable to spawn process with " + this.playerPath)
     }
 
     this.process.stdout.setEncoding('utf8')
@@ -240,7 +240,7 @@ export class Player {
 
     if (this.supportsStatusCommand()) {
       this.statusCommandIntervalId = setInterval(() => {
-        this.sendCommand(Command.STATUS)
+        this.sendCommand(ShellPlayerCommand.STATUS)
       }, 1000)
     }
 
@@ -261,7 +261,7 @@ export class Player {
     return true
   }
 
-  sendCommand(cmd: Command) {
+  sendCommand(cmd: ShellPlayerCommand) {
     if (!this.process) {
       return
     }
