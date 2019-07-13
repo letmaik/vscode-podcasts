@@ -81,10 +81,19 @@
           "items": {
             "type": "object",
             "properties": {
-              "title": { "type": "string", "description": "Title of the podcast" },
-              "url": { "type": "string", "description": "URL of the podcast feed" }
+              "title": {
+                "type": "string",
+                "description": "Title of the podcast"
+              },
+              "url": {
+                "type": "string",
+                "description": "URL of the podcast feed"
+              }
             },
-            "required": ["title", "url"]
+            "required": [
+              "title",
+              "url"
+            ]
           },
           "default": [
             {

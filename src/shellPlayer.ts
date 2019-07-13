@@ -2,6 +2,7 @@
 
 import * as path from 'path'
 import * as fs from 'fs'
+import {EOL} from 'os'
 import {platform} from 'process'
 import * as findExec from 'find-exec'
 import {spawn, ChildProcess, SpawnOptions} from 'child_process'
@@ -26,8 +27,6 @@ const PLAYERS = [
   'afplay', // macOS [system]
 ]
 
-// FIXME powershell fails if paths contain spaces
-
 const PLAYER_ARGS = {
   'mplayer': [
     '-msglevel', 'all=0:statusline=5', // output only status lines
@@ -37,7 +36,8 @@ const PLAYER_ARGS = {
     '%PATH%'
   ],
   'powershell': [
-    '%SUPPORT_DIR%' + path.sep + 'play.ps1',
+    '-NoProfile',
+    '-File', '%SUPPORT_DIR%' + path.sep + 'play.ps1',
     '-inputConfigPath', '%SUPPORT_DIR%' + path.sep + 'input.conf',
     '-ss', '%POSITION_S%',
     '%PATH%'
@@ -221,17 +221,25 @@ export class ShellPlayer {
       throw new Error("Unable to spawn process with " + this.playerPath)
     }
 
+    const logOutputLines = (data: string) => {
+      const lines = data.split(EOL)
+      for (let line of lines) {
+        line = line.trimRight()
+        if (line) {
+          this.log(`${this.playerName}: ${line}`)
+        }
+      }
+    }
+
     this.process.stdout.setEncoding('utf8')
-    this.process.stdout.on('data', data => {
+    this.process.stdout.on('data', (data: string) => {
       if (!this.extractStatus(data)) {
-        this.log(`${this.playerName}: ${data}`)
+        logOutputLines(data)
       }
     });
 
     this.process.stderr.setEncoding('utf8')
-    this.process.stderr.on('data', data => {
-      this.log(`${this.playerName}: ${data}`)
-    });
+    this.process.stderr.on('data', logOutputLines);
 
     this.process.on('close', (code, signal) => {
       clearInterval(this.statusCommandIntervalId)
@@ -274,6 +282,9 @@ export class ShellPlayer {
     if (!cmds[cmd]) {
       throw new Error(`${this.playerName} does not support the ${cmd} command`)
     }
+    if (cmd != ShellPlayerCommand.STATUS) {
+      this.log(`Command: ${ShellPlayerCommand[cmd]}`)
+    }
     this.process.stdin.write(cmds[cmd])
   }
 
@@ -281,6 +292,7 @@ export class ShellPlayer {
     if (!this.process) {
       throw new Error('stop() must be called after start()')
     }
+    this.log('Stopping player')
     this.process.kill()
     this.process = undefined
     const elapsed = this.startPosition + (Date.now() - this.startUnixTimestamp) / 1000

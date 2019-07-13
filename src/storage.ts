@@ -130,6 +130,7 @@ export class Storage {
             this.log(`Downloading ${episode.enclosureUrl} to ${enclosurePath}`)
             await downloadFile(episode.enclosureUrl, enclosurePath)
             feed.downloaded[guid] = enclosureFilename
+            this.saveMetadata()
         }
         const enclosureFilename = feed.downloaded[guid]
         const enclosurePath = path.join(this.enclosuresPath, enclosureFilename)
