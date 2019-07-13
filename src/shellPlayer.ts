@@ -26,6 +26,8 @@ const PLAYERS = [
   'afplay', // macOS [system]
 ]
 
+// FIXME powershell fails if paths contain spaces
+
 const PLAYER_ARGS = {
   'mplayer': [
     '-msglevel', 'all=0:statusline=5', // output only status lines

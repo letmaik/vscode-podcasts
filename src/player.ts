@@ -1,4 +1,5 @@
 import { ShellPlayer } from "./shellPlayer";
+import { Storage } from "./storage";
 
 interface PodcastEpisode {
     title: string
@@ -11,11 +12,11 @@ export class Player {
 
     private currentEpisode?: PodcastEpisode
 
-    constructor(private shellPlayer: ShellPlayer, private log: (msg: string) => void) {
+    constructor(private shellPlayer: ShellPlayer, private storage: Storage, private log: (msg: string) => void) {
 
     }
 
-    open(episode: PodcastEpisode) {
+    async open(episode: PodcastEpisode) {
         this.currentEpisode = episode
     }
 

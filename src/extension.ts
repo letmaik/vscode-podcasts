@@ -11,12 +11,12 @@ import { NAMESPACE } from './constants'
 import { ShellPlayer, ShellPlayerCommand } from './shellPlayer';
 import * as listenNotes from './listen-notes'
 import { toHumanDuration, toHumanTimeAgo, downloadFile } from './util';
+import { Storage } from './storage';
 
 const parsePodcast = util.promisify(parsePodcast_);
 
 interface EpisodeItem extends QuickPickItem {
-    url: string
-    guid?: string
+    guid: string
 }
 
 interface PodcastItem extends QuickPickItem {
@@ -82,8 +82,8 @@ export async function activate(context: ExtensionContext) {
         supportDir: context.asAbsolutePath('extra')
     }, log)
 
-    const audioStorageDir = path.join(context.globalStoragePath, 'audio')
-    await mkdirp(audioStorageDir)
+    const storage = new Storage(context.globalStoragePath, log)
+    await storage.loadMetadata()
 
     // TODO allow to add podcasts from search to the config
 
@@ -122,16 +122,17 @@ export async function activate(context: ExtensionContext) {
             feedUrl = feedPick.url
         }
 
-        const data = await requestp({uri: feedUrl, json: true})
-        const podcast = await parsePodcast(data)
+        const podcast = await storage.getPodcast(feedUrl)
 
-        const items: EpisodeItem[] = podcast.episodes.map(episode => ({
-            label: episode.title,
-            description: episode.description,
-            detail: toHumanDuration(episode.duration) + ' | ' + toHumanTimeAgo(episode.published),
-            url: episode.enclosure.url,
-            guid: episode.guid
-        }));
+        const items: EpisodeItem[] = Object.keys(podcast.episodes).map(guid => {
+            const episode = podcast.episodes[guid]
+            return {
+                label: episode.title,
+                description: episode.description,
+                detail: toHumanDuration(episode.duration) + ' | ' + toHumanTimeAgo(episode.published),
+                guid: guid
+            };
+        });
 
         const pick = await window.showQuickPick(items, {
             ignoreFocusOut: true,
@@ -141,18 +142,10 @@ export async function activate(context: ExtensionContext) {
             return
         }
 
-        const hash = crypto.createHash('md5').update(pick.guid || pick.url).digest('hex')
-        const ext = path.extname(pick.url) || '.mp3'
-        const filename = hash + ext
-        const audioPath = path.join(audioStorageDir, filename)
-
-        if (!fs.existsSync(audioPath)) {
-            log(`Downloading ${pick.url} to ${audioPath}`)
-            await downloadFile(pick.url, audioPath)
-        }
+        const enclosurePath = await storage.getEpisodeEnclosure(feedUrl, pick.guid)
 
         try {
-            await player.play(audioPath,
+            await player.play(enclosurePath,
                 0,
                 e => {
                     console.error(e)
@@ -275,6 +268,8 @@ export async function activate(context: ExtensionContext) {
         if (!pick) {
             return
         }
+
+        // TODO resolve feed URL and figure out real guid
 
         commands.executeCommand(NAMESPACE + '.play', pick.url)
     }))
