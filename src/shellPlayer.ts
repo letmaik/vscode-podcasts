@@ -115,10 +115,11 @@ export class ShellPlayer {
   private statusCommandIntervalId: NodeJS.Timeout
 
   private durationCache = new Map<string, number>()
-  private duration: number
+  public duration: number
   private startPosition: number // s
-  private currentPosition: number | undefined // s
+  private currentPositionFromStatus: number | undefined // s
   private startUnixTimestamp: number // ms
+  private stopUnixTimestamp: number | undefined // ms
 
   constructor(opts: ShellPlayerOptions, private log: (msg: string) => void) {
     this.supportDir = opts.supportDir
@@ -180,7 +181,7 @@ export class ShellPlayer {
     return args
   }
 
-  async getDuration(audioPath: string): Promise<number> {
+  private async getDuration(audioPath: string): Promise<number> {
     const duration = await mp3Duration(audioPath)
     if (duration == 0) {
       throw new Error('Unable to extract audio duration')
@@ -211,11 +212,19 @@ export class ShellPlayer {
       throw new Error("Couldn't find a suitable audio player")
     }
 
+    if (!this.supportsStartOffset() && startPosition != 0) {
+      throw new Error(`${this.playerName} does not support playing from arbitrary positions`)
+    }
+
+    this.startPosition = startPosition
+    this.currentPositionFromStatus = undefined
+    this.startUnixTimestamp = Date.now()
+    this.stopUnixTimestamp = undefined
     this.duration = await this.getDuration(audioPath)
+
     const args = this.getPlayerArgs(audioPath, startPosition)
     this.log(`Running ${this.playerPath} ${args.join(' ')}`)
 
-    this.startUnixTimestamp = Date.now()
     this.process = spawn(this.playerPath, args, options)
     if (!this.process) {
       throw new Error("Unable to spawn process with " + this.playerPath)
@@ -246,6 +255,9 @@ export class ShellPlayer {
       if (!this.process!.killed && code != 0) {
         onError(new Error(`${this.playerName} terminated unexpectedly with exit code ${code}`))
       }
+      if (!this.stopUnixTimestamp) {
+        this.stopUnixTimestamp = Date.now()
+      }
     })
 
     if (this.supportsStatusCommand()) {
@@ -253,8 +265,6 @@ export class ShellPlayer {
         this.sendCommand(ShellPlayerCommand.STATUS)
       }, 1000)
     }
-
-    this.startPosition = startPosition
   }
 
   private extractStatus(line: string) {
@@ -267,7 +277,7 @@ export class ShellPlayer {
     if (!matches) {
       return false
     }
-    this.currentPosition = parseFloat(matches.groups!['elapsed'])
+    this.currentPositionFromStatus = parseFloat(matches.groups!['elapsed'])
     return true
   }
 
@@ -288,16 +298,24 @@ export class ShellPlayer {
     this.process.stdin.write(cmds[cmd])
   }
 
-  stop(): number {
+  stop() {
     if (!this.process) {
       throw new Error('stop() must be called after start()')
     }
     this.log('Stopping player')
     this.process.kill()
     this.process = undefined
-    const elapsed = this.startPosition + (Date.now() - this.startUnixTimestamp) / 1000
+    this.stopUnixTimestamp = Date.now()
+  }
+
+  getPosition() {
+    if (this.currentPositionFromStatus) {
+      return this.currentPositionFromStatus
+    }
+    const current = this.stopUnixTimestamp ? this.stopUnixTimestamp : Date.now()
+    const elapsed = this.startPosition + (current - this.startUnixTimestamp) / 1000
     if (elapsed > this.duration) {
-      return -1
+      return this.duration
     } else {
       return elapsed
     }

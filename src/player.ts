@@ -2,31 +2,41 @@ import { ShellPlayer, ShellPlayerCommand } from "./shellPlayer";
 import { Storage } from "./storage";
 import { window, StatusBarAlignment, Disposable, StatusBarItem } from "vscode";
 import { NAMESPACE } from "./constants";
+import { toHumanDuration } from "./util";
 
 export class Player {
     private currentEpisodeFeedUrl?: string
     private currentEpisodeGuid?: string
+
     private statusBarItem?: StatusBarItem
+    private statusBarInterval?: NodeJS.Timeout
 
     constructor(private shellPlayer: ShellPlayer, private storage: Storage, private log: (msg: string) => void, private disposables: Disposable[]) {
 
     }
 
-    private createStatusBarItems() {
+    private createStatusBarItem() {
+        // TODO encapsulate into separate component
         const statusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 100)
+        const prefix = '$(radio-tower) '
         statusBarItem.command = NAMESPACE + '.main'
-        statusBarItem.text = '$(radio-tower) 33 min left'
-        statusBarItem.tooltip = 'Podcast controls'
+        statusBarItem.text = prefix
         statusBarItem.show()
         this.statusBarItem = statusBarItem
         this.disposables.push(statusBarItem)
+
+        this.statusBarInterval = setInterval(() => {
+            const pos = this.shellPlayer.getPosition()
+            const total = this.shellPlayer.duration
+            statusBarItem.text = prefix + toHumanDuration(total - pos) + ' left'
+        }, 1000)
     }
 
     async play(feedUrl: string, guid: string) {
         this.currentEpisodeFeedUrl = feedUrl
         this.currentEpisodeGuid = guid
 
-        this.createStatusBarItems()
+        this.createStatusBarItem()
 
         const enclosurePath = await this.storage.fetchEpisodeEnclosure(feedUrl, guid)
         
