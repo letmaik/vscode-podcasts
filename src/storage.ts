@@ -13,7 +13,7 @@ const writeFile = promisify(fs.writeFile)
 const unlink = promisify(fs.unlink)
 const parsePodcast = promisify(parsePodcast_)
 
-interface EpisodeMetadata {
+export interface EpisodeMetadata {
     title: string
     description: string
     duration: number // seconds
@@ -21,7 +21,7 @@ interface EpisodeMetadata {
     enclosureUrl: string
 }
 
-interface PodcastMetadata {
+export interface PodcastMetadata {
     title: string
     description: string
     homepageUrl: string
@@ -66,13 +66,24 @@ export class Storage {
         return this.metadata
     }
 
-    async getPodcast(url: string) {
-        if (!(url in this.metadata.podcasts)) {
+    hasPodcast(url: string) {
+        return url in this.metadata.podcasts
+    }
+
+    getPodcast(url: string) {
+        if (!this.hasPodcast(url)) {
+            throw new Error(`Podcast ${url} not found in storage`)
+        }
+        return this.metadata.podcasts[url]
+    }
+
+    async fetchPodcast(url: string) {
+        if (!this.hasPodcast(url)) {
             await this.updatePodcast(url)
         } else {
             this.log(`Using cached podcast metadata for ${url}`)
         }
-        return this.metadata.podcasts[url]
+        return this.getPodcast(url)
     }
 
     async updatePodcast(url: string) {
@@ -115,8 +126,8 @@ export class Storage {
         this.saveMetadata()
     }
 
-    async getEpisodeEnclosure(feedUrl: string, guid: string) {
-        const feed = await this.getPodcast(feedUrl)
+    async fetchEpisodeEnclosure(feedUrl: string, guid: string) {
+        const feed = await this.fetchPodcast(feedUrl)
         const episode = feed.episodes[guid]
         if (!(guid in feed.downloaded)) {
             let enclosureFilename: string

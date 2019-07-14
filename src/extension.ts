@@ -2,7 +2,7 @@ import * as util from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { ExtensionContext, workspace, window, Disposable, commands, Uri, QuickPickItem, StatusBarAlignment } from 'vscode'
+import { ExtensionContext, workspace, window, Disposable, commands, Uri, QuickPickItem, StatusBarAlignment, QuickInputButtons, QuickInput, QuickInputButton } from 'vscode'
 import * as requestp from 'request-promise-native';
 import * as parsePodcast_ from 'node-podcast-parser';
 
@@ -11,7 +11,7 @@ import { NAMESPACE } from './constants'
 import { ShellPlayer, ShellPlayerCommand } from './shellPlayer';
 import * as listenNotes from './listen-notes'
 import { toHumanDuration, toHumanTimeAgo, downloadFile } from './util';
-import { Storage } from './storage';
+import { Storage, PodcastMetadata } from './storage';
 
 const parsePodcast = util.promisify(parsePodcast_);
 
@@ -100,17 +100,27 @@ export async function activate(context: ExtensionContext) {
 
     const statusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 100)
     statusBarItem.command = NAMESPACE + '.main'
-    statusBarItem.text = '$(radio-tower) 33 min'
+    statusBarItem.text = '$(radio-tower) 33 min left'
     statusBarItem.tooltip = 'Podcast controls'
     statusBarItem.show()
     disposables.push(statusBarItem)
 
     disposables.push(commands.registerCommand(NAMESPACE + '.play', async (feedUrl?: string) => {
         if (!feedUrl) {
-            const feedItems: PodcastItem[] = cfg.feeds.map(feed => ({
-                label: feed.title,
-                url: feed.url
-            }));
+            const feedItems: PodcastItem[] = cfg.feeds.map(feed => {
+                let detail = ''
+                if (storage.hasPodcast(feed.url)) {
+                    const downloaded = Object.keys(storage.getPodcast(feed.url).downloaded).length
+                    if (downloaded > 0) {
+                        detail = `$(database) ${downloaded}`
+                    }
+                }
+                return {
+                    label: feed.title,
+                    detail: detail,
+                    url: feed.url
+                }
+            });
 
             const feedPick = await window.showQuickPick(feedItems, {
                 ignoreFocusOut: true,
@@ -122,27 +132,69 @@ export async function activate(context: ExtensionContext) {
             feedUrl = feedPick.url
         }
 
-        const podcast = await storage.getPodcast(feedUrl)
+        const getEpisodeItems = (podcast: PodcastMetadata) => {
+            const items: EpisodeItem[] = Object.keys(podcast.episodes).map(guid => {
+                const episode = podcast.episodes[guid]
+                const downloaded = guid in podcast.downloaded ? ' | $(database)' : ''
+                return {
+                    label: episode.title,
+                    description: episode.description,
+                    detail: toHumanDuration(episode.duration) + ' | ' + toHumanTimeAgo(episode.published) + downloaded,
+                    guid: guid
+                }
+            })
+            return items
+        }
 
-        const items: EpisodeItem[] = Object.keys(podcast.episodes).map(guid => {
-            const episode = podcast.episodes[guid]
-            return {
-                label: episode.title,
-                description: episode.description,
-                detail: toHumanDuration(episode.duration) + ' | ' + toHumanTimeAgo(episode.published),
-                guid: guid
-            };
-        });
+        let podcast = await storage.fetchPodcast(feedUrl)
 
-        const pick = await window.showQuickPick(items, {
-            ignoreFocusOut: true,
-            placeHolder: 'Pick an episode'
+        const refreshButton: QuickInputButton = {
+            iconPath: {
+                dark: Uri.file(context.asAbsolutePath('resources/icons/dark/refresh.svg')),
+                light: Uri.file(context.asAbsolutePath('resources/icons/light/refresh.svg'))
+            },
+            tooltip: 'Refresh'
+        }
+
+        const episodePicker = window.createQuickPick<EpisodeItem>()
+        episodePicker.ignoreFocusOut = true
+        episodePicker.title = podcast.title
+        episodePicker.placeholder = 'Pick an episode'
+        episodePicker.items = getEpisodeItems(podcast)
+        episodePicker.buttons = [refreshButton]
+        episodePicker.onDidTriggerButton(async btn => {
+            if (btn == refreshButton) {
+                episodePicker.busy = true
+                try {
+                    await storage.updatePodcast(feedUrl!)
+                } catch (e) {
+                    window.showWarningMessage(`Updating the feed failed: ${e}`)
+                    return
+                } finally {
+                    episodePicker.busy = false
+                }
+                podcast = storage.getPodcast(feedUrl!)
+                episodePicker.items = getEpisodeItems(podcast)
+            }
         })
+        const episodePickerPromise = new Promise<EpisodeItem | undefined>((resolve, _) => {
+            episodePicker.onDidAccept(() => {
+                resolve(episodePicker.selectedItems[0])
+                episodePicker.dispose()
+            })
+            episodePicker.onDidHide(() => {
+                resolve(undefined)
+                episodePicker.dispose()
+            })
+        })
+        episodePicker.show()
+        const pick = await episodePickerPromise
+
         if (!pick) {
             return
         }
 
-        const enclosurePath = await storage.getEpisodeEnclosure(feedUrl, pick.guid)
+        const enclosurePath = await storage.fetchEpisodeEnclosure(feedUrl, pick.guid)
 
         try {
             await player.play(enclosurePath,
