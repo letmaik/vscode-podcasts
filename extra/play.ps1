@@ -29,7 +29,7 @@ $keyMapping = @{
 if ($inputConfigPath) {
     $lines = Get-Content $inputConfigPath
     foreach ($line in $lines) {
-        if ($line -match '^([^\s#]+)\s+(\w+)\s+([^\s#]*)\s*#?.*$') {
+        if ($line -match '^([^\s#]+)\s+(\w+)\s*([^\s#]*)\s*#?.*$') {
             $key = $Matches[1]
             if ($keyNameMapping.ContainsKey($key)) {
                 $key = $keyNameMapping[$key]
@@ -40,6 +40,8 @@ if ($inputConfigPath) {
                 $arg = [float]$arg
             } catch {}
             $keyMapping[$key] = $cmd, $arg
+        } elseif ($line -and !$line.startsWith('##')) {
+            Write-Host "Ignoring: $line"
         }
     }
 }
