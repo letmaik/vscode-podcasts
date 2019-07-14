@@ -1,19 +1,11 @@
-import * as util from 'util';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as crypto from 'crypto';
 import { ExtensionContext, workspace, window, Disposable, commands, Uri, QuickPickItem, StatusBarAlignment, QuickInputButtons, QuickInput, QuickInputButton } from 'vscode'
-import * as requestp from 'request-promise-native';
-import * as parsePodcast_ from 'node-podcast-parser';
 
-import {mkdirp} from './3rdparty/util'
 import { NAMESPACE } from './constants'
-import { ShellPlayer, ShellPlayerCommand } from './shellPlayer';
+import { ShellPlayer } from './shellPlayer';
 import * as listenNotes from './listen-notes'
-import { toHumanDuration, toHumanTimeAgo, downloadFile } from './util';
+import { toHumanDuration, toHumanTimeAgo } from './util';
 import { Storage, PodcastMetadata } from './storage';
-
-const parsePodcast = util.promisify(parsePodcast_);
+import { Player } from './player';
 
 interface EpisodeItem extends QuickPickItem {
     guid: string
@@ -21,6 +13,10 @@ interface EpisodeItem extends QuickPickItem {
 
 interface PodcastItem extends QuickPickItem {
     url: string
+}
+
+interface CommandItem extends QuickPickItem {
+    cmd: string
 }
 
 interface SearchConfiguration {
@@ -40,14 +36,6 @@ interface Configuration {
     feeds: Feed[]
     player: string | undefined
     search: SearchConfiguration
-}
-
-const COMMAND_MAPPING = {
-    'pause': ShellPlayerCommand.PAUSE,
-    'skipBackward': ShellPlayerCommand.SKIP_BACKWARD,
-    'skipForward': ShellPlayerCommand.SKIP_FORWARD,
-    'slowdown': ShellPlayerCommand.SLOWDOWN,
-    'speedup': ShellPlayerCommand.SPEEDUP,
 }
 
 function getConfig(): Configuration {
@@ -77,7 +65,7 @@ export async function activate(context: ExtensionContext) {
 
     let cfg = getConfig()
 
-    const player = new ShellPlayer({
+    const shellPlayer = new ShellPlayer({
         playerPath: cfg.player,
         supportDir: context.asAbsolutePath('extra')
     }, log)
@@ -85,25 +73,63 @@ export async function activate(context: ExtensionContext) {
     const storage = new Storage(context.globalStoragePath, log)
     await storage.loadMetadata()
 
+    const player = new Player(shellPlayer, storage, log, disposables)
+
     // TODO allow to add podcasts from search to the config
 
     workspace.onDidChangeConfiguration(e => {
         cfg = getConfig()
         if (e.affectsConfiguration(NAMESPACE + '.player')) {
-            player.setPlayerPath(cfg.player)
+            shellPlayer.setPlayerPath(cfg.player)
         }
     })
 
-    commands.registerCommand(NAMESPACE + '.main', async () => {
-        // TODO go to main menu dropdown
-    })
+    const registerPlayerCommand = (cmd: string, fn: (player: Player) => void) => {
+        disposables.push(commands.registerCommand(NAMESPACE + '.' + cmd, async () => {
+            try {
+                fn(player)
+            } catch (e) {
+                console.error(e)
+                window.showErrorMessage(e.message)
+            }
+        }))
+    }
 
-    const statusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 100)
-    statusBarItem.command = NAMESPACE + '.main'
-    statusBarItem.text = '$(radio-tower) 33 min left'
-    statusBarItem.tooltip = 'Podcast controls'
-    statusBarItem.show()
-    disposables.push(statusBarItem)
+    registerPlayerCommand('pause', p => p.pause())
+    registerPlayerCommand('stop', p => p.stop())
+    registerPlayerCommand('skipBackward', p => p.skipBackward())
+    registerPlayerCommand('skipForward', p => p.skipForward())
+    registerPlayerCommand('slowdown', p => p.slowdown())
+    registerPlayerCommand('speedup', p => p.speedup())
+
+    commands.registerCommand(NAMESPACE + '.main', async () => {
+        const items: CommandItem[] = [{
+            cmd: 'pause',
+            label: 'Pause/Unpause'
+        }, {
+            cmd: 'stop',
+            label: 'Stop'
+        }, {
+            cmd: 'skipBackward',
+            label: 'Skip backward'
+        }, {
+            cmd: 'skipForward',
+            label: 'Skip forward'
+        }, {
+            cmd: 'slowdown',
+            label: 'Slow down'
+        }, {
+            cmd: 'speedup',
+            label: 'Speed up'
+        }]
+        const pick = await window.showQuickPick(items, {
+            placeHolder: 'Choose an action'
+        })
+        if (!pick) {
+            return
+        }
+        commands.executeCommand(NAMESPACE + '.' + pick.cmd)
+    })
 
     disposables.push(commands.registerCommand(NAMESPACE + '.play', async (feedUrl?: string) => {
         if (!feedUrl) {
@@ -194,39 +220,7 @@ export async function activate(context: ExtensionContext) {
             return
         }
 
-        const enclosurePath = await storage.fetchEpisodeEnclosure(feedUrl, pick.guid)
-
-        try {
-            await player.play(enclosurePath,
-                0,
-                e => {
-                    console.error(e)
-                    window.showErrorMessage(e.message)
-                })
-        } catch (e) {
-            console.error(e)
-            window.showErrorMessage(e.message)
-        }
-    }))
-
-    for (const cmdName of Object.keys(COMMAND_MAPPING)) {
-        disposables.push(commands.registerCommand(NAMESPACE + '.' + cmdName, async () => {
-            try {
-                player.sendCommand(COMMAND_MAPPING[cmdName])
-            } catch (e) {
-                console.error(e)
-                window.showErrorMessage(e.message)
-            }
-        }))
-    }
-
-    disposables.push(commands.registerCommand(NAMESPACE + '.stop', async () => {
-        try {
-            player.stop()
-        } catch (e) {
-            console.error(e)
-            window.showErrorMessage(e.message)
-        }
+        await player.play(feedUrl, pick.guid)
     }))
 
     disposables.push(commands.registerCommand(NAMESPACE + '.searchEpisodes', async (query?: string) => {
