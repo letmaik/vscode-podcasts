@@ -84,6 +84,7 @@ $player.Open($path)
 $player.Position = [System.TimeSpan]::FromSeconds($ss)
 $player.Play()
 $paused = $false
+$duration = $null
 
 function PrintStatusLine {
     # A:   4.3 (04.2) of 261.0 (04:21.0)  0.0%

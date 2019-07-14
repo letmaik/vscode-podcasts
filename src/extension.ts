@@ -6,6 +6,7 @@ import * as listenNotes from './listen-notes'
 import { toHumanDuration, toHumanTimeAgo } from './util';
 import { Storage, PodcastMetadata } from './storage';
 import { Player } from './player';
+import { StatusBar } from './statusBar';
 
 interface EpisodeItem extends QuickPickItem {
     guid: string
@@ -73,7 +74,9 @@ export async function activate(context: ExtensionContext) {
     const storage = new Storage(context.globalStoragePath, log)
     await storage.loadMetadata()
 
-    const player = new Player(shellPlayer, storage, log, disposables)
+    const statusBar = new StatusBar(disposables)
+
+    const player = new Player(shellPlayer, storage, statusBar, log, disposables)
 
     // TODO allow to add podcasts from search to the config
 

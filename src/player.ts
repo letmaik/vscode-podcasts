@@ -1,45 +1,50 @@
-import { ShellPlayer, ShellPlayerCommand } from "./shellPlayer";
+import { ShellPlayer, ShellPlayerCommand, ShellPlayerStatus } from "./shellPlayer";
 import { Storage } from "./storage";
-import { window, StatusBarAlignment, Disposable, StatusBarItem } from "vscode";
-import { NAMESPACE } from "./constants";
-import { toHumanDuration } from "./util";
+import { window, Disposable, StatusBarItem } from "vscode";
+import { StatusBar, StatusBarStatus } from "./statusBar";
+
+const StatusMapping = {
+    [ShellPlayerStatus.PLAYING]: StatusBarStatus.PLAYING,
+    [ShellPlayerStatus.PAUSED]: StatusBarStatus.PAUSED,
+    [ShellPlayerStatus.STOPPED]: StatusBarStatus.STOPPED
+}
 
 export class Player {
     private currentEpisodeFeedUrl?: string
     private currentEpisodeGuid?: string
 
-    private statusBarItem?: StatusBarItem
-    private statusBarInterval?: NodeJS.Timeout
+    private shellPlayerQueryIntervalId: NodeJS.Timeout
 
-    constructor(private shellPlayer: ShellPlayer, private storage: Storage, private log: (msg: string) => void, private disposables: Disposable[]) {
-
-    }
-
-    private createStatusBarItem() {
-        // TODO encapsulate into separate component
-        const statusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 100)
-        const prefix = '$(radio-tower) '
-        statusBarItem.command = NAMESPACE + '.main'
-        statusBarItem.text = prefix
-        statusBarItem.show()
-        this.statusBarItem = statusBarItem
-        this.disposables.push(statusBarItem)
-
-        this.statusBarInterval = setInterval(() => {
-            const pos = this.shellPlayer.getPosition()
-            const total = this.shellPlayer.duration
-            statusBarItem.text = prefix + toHumanDuration(total - pos) + ' left'
-        }, 1000)
+    constructor(private shellPlayer: ShellPlayer, private storage: Storage, private statusBar: StatusBar, 
+            private log: (msg: string) => void, private disposables: Disposable[]) {
+        
+        disposables.push(this.shellPlayer.onStatusChange(shellPlayerStatus => {
+            const statusBarStatus = StatusMapping[shellPlayerStatus]
+            this.statusBar.update({status: statusBarStatus})
+            if (shellPlayerStatus == ShellPlayerStatus.PLAYING) {
+                const sendUpdate = () => {
+                    this.statusBar.update({
+                        status: StatusBarStatus.PLAYING,
+                        duration: this.shellPlayer.duration,
+                        elapsed: this.shellPlayer.position
+                    })
+                }
+                sendUpdate()
+                this.shellPlayerQueryIntervalId = setInterval(sendUpdate, 1000)
+            } else {
+                clearInterval(this.shellPlayerQueryIntervalId)
+            }
+        }))
     }
 
     async play(feedUrl: string, guid: string) {
         this.currentEpisodeFeedUrl = feedUrl
         this.currentEpisodeGuid = guid
-
-        this.createStatusBarItem()
-
+        
+        this.statusBar.update({status: StatusBarStatus.DOWNLOADING})
         const enclosurePath = await this.storage.fetchEpisodeEnclosure(feedUrl, guid)
         
+        this.statusBar.update({status: StatusBarStatus.OPENING})
         const startPosition = 0
         try {
             await this.shellPlayer.play(enclosurePath,

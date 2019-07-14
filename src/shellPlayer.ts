@@ -8,6 +8,7 @@ import * as findExec from 'find-exec'
 import {spawn, ChildProcess, SpawnOptions} from 'child_process'
 
 import mp3Duration = require('./3rdparty/mp3-duration.js')
+import { EventEmitter } from 'vscode';
 
 const IS_WINDOWS = platform === 'win32'
 
@@ -37,6 +38,7 @@ const PLAYER_ARGS = {
   ],
   'powershell': [
     '-NoProfile',
+    '-ExecutionPolicy', 'Unrestricted',
     '-File', '%SUPPORT_DIR%' + path.sep + 'play.ps1',
     '-inputConfigPath', '%SUPPORT_DIR%' + path.sep + 'input.conf',
     '-ss', '%POSITION_S%',
@@ -106,7 +108,18 @@ export interface ShellPlayerOptions {
   supportDir: string
 }
 
+export enum ShellPlayerStatus {
+  PLAYING,
+  PAUSED,
+  STOPPED
+}
+
 export class ShellPlayer {
+  private _onStatusChange = new EventEmitter<ShellPlayerStatus>()
+  onStatusChange = this._onStatusChange.event
+
+  private _status = ShellPlayerStatus.STOPPED
+
   private playerPath: string
   private playerName: string // player filename without extension, e.g. 'mplayer'
   private supportDir: string
@@ -125,6 +138,15 @@ export class ShellPlayer {
     this.supportDir = opts.supportDir
     this.setPlayerPath(opts.playerPath)
   }
+  
+  private setStatus(v: ShellPlayerStatus) {
+    this._status = v
+    this._onStatusChange.fire(v)
+  }
+
+  get status() {
+    return this._status
+  }  
 
   setPlayerPath(playerPath?: string) {
     if (playerPath) {
@@ -225,6 +247,10 @@ export class ShellPlayer {
     const args = this.getPlayerArgs(audioPath, startPosition)
     this.log(`Running ${this.playerPath} ${args.join(' ')}`)
 
+    if (!this.supportsStatusCommand()) {
+      this.setStatus(ShellPlayerStatus.PLAYING)
+    }
+
     this.process = spawn(this.playerPath, args, options)
     if (!this.process) {
       throw new Error("Unable to spawn process with " + this.playerPath)
@@ -245,12 +271,13 @@ export class ShellPlayer {
       if (!this.extractStatus(data)) {
         logOutputLines(data)
       }
-    });
+    })
 
     this.process.stderr.setEncoding('utf8')
     this.process.stderr.on('data', logOutputLines);
 
     this.process.on('close', (code, signal) => {
+      this.setStatus(ShellPlayerStatus.STOPPED)
       clearInterval(this.statusCommandIntervalId)
       if (!this.process!.killed && code != 0) {
         onError(new Error(`${this.playerName} terminated unexpectedly with exit code ${code}`))
@@ -261,6 +288,7 @@ export class ShellPlayer {
     })
 
     if (this.supportsStatusCommand()) {
+      this.sendCommand(ShellPlayerCommand.STATUS)
       this.statusCommandIntervalId = setInterval(() => {
         this.sendCommand(ShellPlayerCommand.STATUS)
       }, 1000)
@@ -277,7 +305,11 @@ export class ShellPlayer {
     if (!matches) {
       return false
     }
+    const sendEvent = !this.currentPositionFromStatus
     this.currentPositionFromStatus = parseFloat(matches.groups!['elapsed'])
+    if (sendEvent) {
+      this.setStatus(ShellPlayerStatus.PLAYING)
+    }
     return true
   }
 
@@ -295,6 +327,11 @@ export class ShellPlayer {
     if (cmd != ShellPlayerCommand.STATUS) {
       this.log(`Command: ${ShellPlayerCommand[cmd]}`)
     }
+    if (cmd == ShellPlayerCommand.PAUSE) {
+      this.setStatus(this.status == ShellPlayerStatus.PLAYING 
+        ? ShellPlayerStatus.PAUSED 
+        : ShellPlayerStatus.PLAYING)
+    }
     this.process.stdin.write(cmds[cmd])
   }
 
@@ -306,9 +343,10 @@ export class ShellPlayer {
     this.process.kill()
     this.process = undefined
     this.stopUnixTimestamp = Date.now()
+    this.setStatus(ShellPlayerStatus.STOPPED)
   }
 
-  getPosition() {
+  get position() {
     if (this.currentPositionFromStatus) {
       return this.currentPositionFromStatus
     }
