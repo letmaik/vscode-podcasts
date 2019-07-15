@@ -257,8 +257,11 @@ export async function activate(context: ExtensionContext) {
         })
         const pickerPromise = new Promise<EpisodeItem | undefined>((resolve, _) => {
             episodePicker.onDidAccept(() => {
-                resolve(episodePicker.selectedItems[0])
-                episodePicker.dispose()
+                const items = episodePicker.selectedItems
+                if (items.length > 0) {
+                    resolve(episodePicker.selectedItems[0])
+                    episodePicker.dispose()
+                }
             })
             episodePicker.onDidHide(() => {
                 resolve(undefined)
@@ -308,8 +311,11 @@ export async function activate(context: ExtensionContext) {
         })
         const pickerPromise = new Promise<PodcastItem | undefined>((resolve, _) => {
             podcastPicker.onDidAccept(() => {
-                resolve(podcastPicker.selectedItems[0])
-                podcastPicker.dispose()
+                const items = podcastPicker.selectedItems
+                if (items.length > 0) {
+                    resolve(podcastPicker.selectedItems[0])
+                    podcastPicker.dispose()
+                }
             })
             podcastPicker.onDidHide(() => {
                 resolve(undefined)
