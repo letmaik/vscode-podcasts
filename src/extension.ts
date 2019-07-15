@@ -226,98 +226,103 @@ export async function activate(context: ExtensionContext) {
         await player.play(feedUrl, pick.guid)
     }))
 
-    disposables.push(commands.registerCommand(NAMESPACE + '.searchEpisodes', async (query?: string) => {
-        if (!query) {
-            const input = await window.showInputBox({
-                prompt: 'Enter a search term',
-                placeHolder: 'python'
-            })
-            if (!input) {
+    disposables.push(commands.registerCommand(NAMESPACE + '.searchEpisodes', async () => {
+        const episodePicker = window.createQuickPick<EpisodeItem>()
+        episodePicker.title = 'Search episodes using Listen Notes'
+        episodePicker.ignoreFocusOut = true
+        episodePicker.placeholder = 'Enter a search term'
+        episodePicker.onDidChangeValue(async query => {
+            episodePicker.items = []
+            episodePicker.busy = true
+            let data: listenNotes.EpisodeResult[]
+            try {
+                data = await listenNotes.searchEpisodes(query, cfg.search)
+            } catch (e) {
+                console.error(e)
+                window.showErrorMessage(e.message)
                 return
+            } finally {
+                episodePicker.busy = false
             }
-            query = input
-        }
-
-        let data: listenNotes.EpisodeResult[]
-        try {
-            data = await listenNotes.searchEpisodes(query, cfg.search)
-        } catch (e) {
-            console.error(e)
-            window.showErrorMessage(e.message)
-            return
-        }
-
-        if (data.length == 0) {
-            window.showInformationMessage('No episodes found, try a different keyword.')
-            return
-        }
-
-        const items: EpisodeItem[] = data.map(episode => ({
-            label: episode.title_original,
-            description: episode.description_original,
-            detail: toHumanDuration(episode.audio_length_sec) +
-                ' | ' + toHumanTimeAgo(episode.pub_date_ms) +
-                ' | ' + episode.podcast_title_original,
-            url: episode.audio,
-            guid: episode.id
-        }));
-
-        const pick = await window.showQuickPick(items, {
-            ignoreFocusOut: true,
-            placeHolder: 'Pick an episode'
+    
+            episodePicker.items = data.map(episode => ({
+                label: episode.title_original,
+                description: episode.description_original,
+                detail: toHumanDuration(episode.audio_length_sec) +
+                    ' | ' + toHumanTimeAgo(episode.pub_date_ms) +
+                    ' | ' + episode.podcast_title_original,
+                url: episode.audio,
+                guid: episode.id
+            }));
         })
+        const pickerPromise = new Promise<EpisodeItem | undefined>((resolve, _) => {
+            episodePicker.onDidAccept(() => {
+                resolve(episodePicker.selectedItems[0])
+                episodePicker.dispose()
+            })
+            episodePicker.onDidHide(() => {
+                resolve(undefined)
+                episodePicker.dispose()
+            })
+        })
+        episodePicker.show()
+        const pick = await pickerPromise
+
         if (!pick) {
             return
         }
-        // TODO do something
 
+        // TODO do something
     }))
 
     disposables.push(commands.registerCommand(NAMESPACE + '.searchPodcasts', async (query?: string) => {
-        if (!query) {
-            const input = await window.showInputBox({
-                prompt: 'Enter a search term',
-                placeHolder: 'python'
-            })
-            if (!input) {
+        const podcastPicker = window.createQuickPick<PodcastItem>()
+        podcastPicker.title = 'Search podcasts using Listen Notes'
+        podcastPicker.ignoreFocusOut = true
+        podcastPicker.placeholder = 'Enter a search term'
+        podcastPicker.onDidChangeValue(async query => {
+            podcastPicker.items = []
+            podcastPicker.busy = true
+
+            // Currently we only want to support sorting episodes by date.
+            const opts = Object.assign({}, cfg.search);
+            opts.sortByDate = false
+
+            let data: listenNotes.PodcastResult[]
+            try {
+                data = await listenNotes.searchPodcasts(query, opts)
+            } catch (e) {
+                console.error(e)
+                window.showErrorMessage(e.message)
                 return
+            } finally {
+                podcastPicker.busy = false
             }
-            query = input
-        }
 
-        // Currently we only want to support sorting episodes by date.
-        const opts = Object.assign({}, cfg.search);
-        opts.sortByDate = false
-
-        let data: listenNotes.PodcastResult[]
-        try {
-            data = await listenNotes.searchPodcasts(query, opts)
-        } catch (e) {
-            console.error(e)
-            window.showErrorMessage(e.message)
-            return
-        }
-
-        if (data.length == 0) {
-            window.showInformationMessage('No podcasts found, try a different keyword.')
-            return
-        }
-
-        const items: PodcastItem[] = data.map(podcast => ({
-            label: podcast.title_original,
-            description: `Last episode: ` + toHumanTimeAgo(podcast.latest_pub_date_ms),
-            detail: podcast.description_original,
-            url: podcast.rss
-        }));
-
-        const pick = await window.showQuickPick(items, {
-            ignoreFocusOut: true,
-            placeHolder: 'Pick a podcast'
+            podcastPicker.items = data.map(podcast => ({
+                label: podcast.title_original,
+                description: `Last episode: ` + toHumanTimeAgo(podcast.latest_pub_date_ms),
+                detail: podcast.description_original,
+                url: podcast.rss
+            }))
         })
+        const pickerPromise = new Promise<PodcastItem | undefined>((resolve, _) => {
+            podcastPicker.onDidAccept(() => {
+                resolve(podcastPicker.selectedItems[0])
+                podcastPicker.dispose()
+            })
+            podcastPicker.onDidHide(() => {
+                resolve(undefined)
+                podcastPicker.dispose()
+            })
+        })
+        podcastPicker.show()
+        const pick = await pickerPromise
+
         if (!pick) {
             return
         }
-
+        
         // TODO resolve feed URL and figure out real guid
 
         commands.executeCommand(NAMESPACE + '.play', pick.url)
