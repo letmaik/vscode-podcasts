@@ -2,41 +2,16 @@ import { ExtensionContext, workspace, window, Disposable, commands, Uri, QuickPi
 
 import { NAMESPACE } from './constants'
 import { ShellPlayer } from './shellPlayer';
-import * as listenNotes from './listen-notes'
+import { ListenNotes, SearchResult, EpisodeResult, PodcastResult } from './listenNotes'
 import { toHumanDuration, toHumanTimeAgo } from './util';
 import { Storage, PodcastMetadata } from './storage';
 import { Player } from './player';
 import { StatusBar } from './statusBar';
-
-interface EpisodeItem extends QuickPickItem {
-    guid: string
-}
-
-interface PodcastItem extends QuickPickItem {
-    url: string
-}
+import { PodcastItem, EpisodeItem, Configuration, Feed } from './types';
+import { ListenNotesPodcastSearchQuickPick } from './quickpicks/listenNotesSearch';
 
 interface CommandItem extends QuickPickItem {
     cmd: string
-}
-
-interface SearchConfiguration {
-    genres: string[]
-    sortByDate: boolean
-    language: string
-    minimumLength: number
-    maximumLength: number
-}
-
-interface Feed {
-    title: string
-    url: string
-}
-
-interface Configuration {
-    feeds: Feed[]
-    player: string | undefined
-    search: SearchConfiguration
 }
 
 function getConfig(): Configuration {
@@ -75,8 +50,8 @@ export async function activate(context: ExtensionContext) {
     await storage.loadMetadata()
 
     const statusBar = new StatusBar(disposables)
-
     const player = new Player(shellPlayer, storage, statusBar, log, disposables)
+    const listenNotes = new ListenNotes(log)
 
     // TODO allow to add podcasts from search to the config
 
@@ -234,9 +209,12 @@ export async function activate(context: ExtensionContext) {
         episodePicker.onDidChangeValue(async query => {
             episodePicker.items = []
             episodePicker.busy = true
-            let data: listenNotes.EpisodeResult[]
+            let data: SearchResult<EpisodeResult>
+
+            const opts = Object.assign({offset: 0}, cfg.search);
+
             try {
-                data = await listenNotes.searchEpisodes(query, cfg.search)
+                data = await listenNotes.searchEpisodes(query, opts)
             } catch (e) {
                 console.error(e)
                 window.showErrorMessage(e.message)
@@ -245,7 +223,7 @@ export async function activate(context: ExtensionContext) {
                 episodePicker.busy = false
             }
     
-            episodePicker.items = data.map(episode => ({
+            episodePicker.items = data.results.map(episode => ({
                 label: episode.title_original,
                 description: episode.description_original,
                 detail: toHumanDuration(episode.audio_length_sec) +
@@ -279,58 +257,14 @@ export async function activate(context: ExtensionContext) {
     }))
 
     disposables.push(commands.registerCommand(NAMESPACE + '.searchPodcasts', async (query?: string) => {
-        const podcastPicker = window.createQuickPick<PodcastItem>()
-        podcastPicker.title = 'Search podcasts using Listen Notes'
-        podcastPicker.ignoreFocusOut = true
-        podcastPicker.placeholder = 'Enter a search term'
-        podcastPicker.onDidChangeValue(async query => {
-            podcastPicker.items = []
-            podcastPicker.busy = true
-
-            // Currently we only want to support sorting episodes by date.
-            const opts = Object.assign({}, cfg.search);
-            opts.sortByDate = false
-
-            let data: listenNotes.PodcastResult[]
-            try {
-                data = await listenNotes.searchPodcasts(query, opts)
-            } catch (e) {
-                console.error(e)
-                window.showErrorMessage(e.message)
-                return
-            } finally {
-                podcastPicker.busy = false
-            }
-
-            podcastPicker.items = data.map(podcast => ({
-                label: podcast.title_original,
-                description: `Last episode: ` + toHumanTimeAgo(podcast.latest_pub_date_ms),
-                detail: podcast.description_original,
-                url: podcast.rss
-            }))
-        })
-        const pickerPromise = new Promise<PodcastItem | undefined>((resolve, _) => {
-            podcastPicker.onDidAccept(() => {
-                const items = podcastPicker.selectedItems
-                if (items.length > 0) {
-                    resolve(podcastPicker.selectedItems[0])
-                    podcastPicker.dispose()
-                }
-            })
-            podcastPicker.onDidHide(() => {
-                resolve(undefined)
-                podcastPicker.dispose()
-            })
-        })
-        podcastPicker.show()
-        const pick = await pickerPromise
-
-        if (!pick) {
+        const pick = new ListenNotesPodcastSearchQuickPick(cfg.search, listenNotes, log)
+        const url = await pick.show()
+        if (!url) {
             return
         }
         
         // TODO resolve feed URL and figure out real guid
 
-        commands.executeCommand(NAMESPACE + '.play', pick.url)
+        commands.executeCommand(NAMESPACE + '.play', url)
     }))
 }

@@ -7,6 +7,14 @@ export interface SearchOptions {
     language: string
     minimumLength: number
     maximumLength: number
+    offset: number
+}
+
+export interface SearchResult<T> {
+    count: number
+    total: number
+    next_offset: number
+    results: T[]
 }
 
 export interface PodcastResult {
@@ -63,23 +71,30 @@ function getGenreIdsParam(names: string[]): string {
     return names.map(name => Genres[name]).join(',')
 }
 
-export async function searchPodcasts(query: string, opts: SearchOptions): Promise<PodcastResult[]>  {
-    const url = `https://listen-api.listennotes.com/api/v2/search?q=${encodeURIComponent(query)}&` +
-        `sort_by_date=${opts.sortByDate ? '1' : '0'}&type=podcast&offset=0&` +
-        `genre_ids=${getGenreIdsParam(opts.genres)}&language=${opts.language}`
-    const headers = {'X-ListenAPI-Key': LISTEN_API_KEY}
-    const data = await requestp({url, headers, json: true})
-    const results = data.results as PodcastResult[]
-    return results
-}
+export class ListenNotes {
+    constructor(private log: (msg: string) => void) {
+    }
 
-export async function searchEpisodes(query: string, opts: SearchOptions): Promise<EpisodeResult[]>  {
-    const url = `https://listen-api.listennotes.com/api/v2/search?q=${encodeURIComponent(query)}&` +
-        `sort_by_date=${opts.sortByDate ? '1' : '0'}&type=episode&offset=0&` +
-        `len_min=${opts.minimumLength}&len_max=${opts.maximumLength}&` +
-        `genre_ids=${getGenreIdsParam(opts.genres)}&language=${opts.language}`
-    const headers = {'X-ListenAPI-Key': LISTEN_API_KEY}
-    const data = await requestp({url, headers, json: true})
-    const results = data.results as EpisodeResult[]
-    return results
+    async searchPodcasts(query: string, opts: SearchOptions): Promise<SearchResult<PodcastResult>>  {
+        const url = `https://listen-api.listennotes.com/api/v2/search?q=${encodeURIComponent(query)}&` +
+            `sort_by_date=${opts.sortByDate ? '1' : '0'}&type=podcast&offset=${opts.offset}&` +
+            `genre_ids=${getGenreIdsParam(opts.genres)}&language=${opts.language}`
+        this.log(`Querying Listen Notes API: ${url}`)
+        const headers = {'X-ListenAPI-Key': LISTEN_API_KEY}
+        const data = await requestp({url, headers, json: true}) as SearchResult<PodcastResult>
+        this.log(`Received ${data.count} of ${data.total} results`)
+        return data
+    }
+
+    async searchEpisodes(query: string, opts: SearchOptions): Promise<SearchResult<EpisodeResult>>  {
+        const url = `https://listen-api.listennotes.com/api/v2/search?q=${encodeURIComponent(query)}&` +
+            `sort_by_date=${opts.sortByDate ? '1' : '0'}&type=episode&offset=${opts.offset}&` +
+            `len_min=${opts.minimumLength}&len_max=${opts.maximumLength}&` +
+            `genre_ids=${getGenreIdsParam(opts.genres)}&language=${opts.language}`
+        this.log(`Querying Listen Notes API: ${url}`)
+        const headers = {'X-ListenAPI-Key': LISTEN_API_KEY}
+        const data = await requestp({url, headers, json: true}) as SearchResult<EpisodeResult>
+        this.log(`Received ${data.count} of ${data.total} results`)
+        return data
+    }
 }
