@@ -87,10 +87,20 @@ export class Storage {
     }
 
     async updatePodcast(url: string) {
-        this.log(`Updating podcast from ${url}`)
-        const data = await requestp({uri: url, json: true})
-        const podcast = await parsePodcast(data)
+        // TODO support paged feeds
+        //   <atom:link href="https://changelog.com/podcast/feed?page=2" rel="next" type="application/rss+xml"/>
+        //   the podcast parser doesn't parse this, so need to extract it directly from XML
 
+        this.log(`Updating podcast from ${url}`)
+        let data: any
+        try {
+            data = await requestp({uri: url})
+        } catch (e) {
+            this.log(`HTTP error: ${e}`)
+            throw e
+        }
+    
+        const podcast = await parsePodcast(data)
         const episodes: { [guid: string]: EpisodeMetadata } = {}
         for (const episode of podcast.episodes) {
             episodes[episode.guid] = {

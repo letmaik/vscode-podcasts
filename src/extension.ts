@@ -1,17 +1,25 @@
-import { ExtensionContext, workspace, window, Disposable, commands, Uri, QuickPickItem, StatusBarAlignment, QuickInputButtons, QuickInput, QuickInputButton } from 'vscode'
+import { ExtensionContext, workspace, window, Disposable, commands, Uri, QuickPickItem, QuickInputButton } from 'vscode'
 
 import { NAMESPACE } from './constants'
 import { ShellPlayer } from './shellPlayer';
-import { ListenNotes, SearchResult, EpisodeResult, PodcastResult } from './listenNotes'
+import { ListenNotes } from './listenNotes'
 import { toHumanDuration, toHumanTimeAgo } from './util';
 import { Storage, PodcastMetadata } from './storage';
 import { Player } from './player';
 import { StatusBar } from './statusBar';
-import { PodcastItem, EpisodeItem, Configuration, Feed } from './types';
-import { ListenNotesPodcastSearchQuickPick } from './quickpicks/listenNotesSearch';
+import { Configuration, Feed } from './types';
+import { ListenNotesPodcastSearchQuickPick, ListenNotesEpisodeSearchQuickPick } from './quickpicks/listenNotesSearch';
 
 interface CommandItem extends QuickPickItem {
     cmd: string
+}
+
+interface EpisodeItem extends QuickPickItem {
+    guid: string
+}
+
+interface PodcastItem extends QuickPickItem {
+    url: string
 }
 
 function getConfig(): Configuration {
@@ -201,70 +209,43 @@ export async function activate(context: ExtensionContext) {
         await player.play(feedUrl, pick.guid)
     }))
 
-    disposables.push(commands.registerCommand(NAMESPACE + '.searchEpisodes', async () => {
-        const episodePicker = window.createQuickPick<EpisodeItem>()
-        episodePicker.title = 'Search episodes using Listen Notes'
-        episodePicker.ignoreFocusOut = true
-        episodePicker.placeholder = 'Enter a search term'
-        episodePicker.onDidChangeValue(async query => {
-            episodePicker.items = []
-            episodePicker.busy = true
-            let data: SearchResult<EpisodeResult>
-
-            const opts = Object.assign({offset: 0}, cfg.search);
-
-            try {
-                data = await listenNotes.searchEpisodes(query, opts)
-            } catch (e) {
-                console.error(e)
-                window.showErrorMessage(e.message)
-                return
-            } finally {
-                episodePicker.busy = false
-            }
-    
-            episodePicker.items = data.results.map(episode => ({
-                label: episode.title_original,
-                description: episode.description_original,
-                detail: toHumanDuration(episode.audio_length_sec) +
-                    ' | ' + toHumanTimeAgo(episode.pub_date_ms) +
-                    ' | ' + episode.podcast_title_original,
-                url: episode.audio,
-                guid: episode.id
-            }));
-        })
-        const pickerPromise = new Promise<EpisodeItem | undefined>((resolve, _) => {
-            episodePicker.onDidAccept(() => {
-                const items = episodePicker.selectedItems
-                if (items.length > 0) {
-                    resolve(episodePicker.selectedItems[0])
-                    episodePicker.dispose()
-                }
-            })
-            episodePicker.onDidHide(() => {
-                resolve(undefined)
-                episodePicker.dispose()
-            })
-        })
-        episodePicker.show()
-        const pick = await pickerPromise
-
-        if (!pick) {
-            return
-        }
-
-        // TODO do something
-    }))
-
-    disposables.push(commands.registerCommand(NAMESPACE + '.searchPodcasts', async (query?: string) => {
+    disposables.push(commands.registerCommand(NAMESPACE + '.searchPodcasts', async () => {
         const pick = new ListenNotesPodcastSearchQuickPick(cfg.search, listenNotes, log)
         const url = await pick.show()
         if (!url) {
             return
         }
-        
-        // TODO resolve feed URL and figure out real guid
+        const realFeedUrl = await listenNotes.resolveRedirect(url)
+        commands.executeCommand(NAMESPACE + '.play', realFeedUrl)
+    }))
 
-        commands.executeCommand(NAMESPACE + '.play', url)
+    disposables.push(commands.registerCommand(NAMESPACE + '.searchEpisodes', async () => {
+        const pick = new ListenNotesEpisodeSearchQuickPick(cfg.search, listenNotes, log)
+        const episode = await pick.show()
+        if (!episode) {
+            return
+        }
+        const realFeedUrl = await listenNotes.resolveRedirect(episode.feedUrl)
+        // TODO update cached feed if episode pub date > last feed update
+        const podcast = await storage.fetchPodcast(realFeedUrl)
+        let match = Object.entries(podcast.episodes).find(
+            ([_, ep]) => ep.title === episode.title)
+        if (!match) {
+            log(`Unable to match "${episode.title}" to an episode in ${realFeedUrl}, trying enclosure URL`)
+            
+            const realEnclosureUrl = await listenNotes.resolveRedirect(episode.enclosureUrl)
+            match = Object.entries(podcast.episodes).find(
+                ([_, ep]) => ep.enclosureUrl === realEnclosureUrl)
+            if (!match) {
+                log(`Unable to match ${realEnclosureUrl} to an episode in ${realFeedUrl}`)
+                log(`Listen Notes feed: ${episode.feedUrl}`)
+                log(`Listen Notes audio: ${episode.enclosureUrl}`)
+                window.showErrorMessage(`Unexpected error, please report an issue ` +
+                    `(see View -> Output for error details)`)
+                return
+            }
+        }
+        const [realGuid, _] = match
+        await player.play(realFeedUrl, realGuid)
     }))
 }

@@ -18,11 +18,3 @@ export interface Configuration {
     player: string | undefined
     search: SearchConfiguration
 }
-
-export interface EpisodeItem extends QuickPickItem {
-    guid: string
-}
-
-export interface PodcastItem extends QuickPickItem {
-    url: string
-}

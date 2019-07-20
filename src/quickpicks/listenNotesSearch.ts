@@ -1,70 +1,34 @@
 import { window, QuickPickItem, QuickPick } from "vscode";
-import { SearchResult, PodcastResult, ListenNotes } from "../listenNotes";
-import { toHumanTimeAgo } from "../util";
-import { PodcastItem, EpisodeItem, SearchConfiguration } from "../types";
+import { SearchResult, PodcastResult, ListenNotes, EpisodeResult } from "../listenNotes";
+import { toHumanTimeAgo, toHumanDuration } from "../util";
+import { SearchConfiguration } from "../types";
 import { debounce } from "../3rdparty/git/decorators";
 
 class LoadMoreItem implements QuickPickItem {
-    label = 'Load more...'
+    constructor(public query: string, public nextOffset: number, private total: number) {}
+    
     alwaysShow = true
+    label = '⭮ Load more...'
+    description = `Remaining: ${this.total - this.nextOffset}`
 }
 
-type PodcastSearchItem = PodcastItem | LoadMoreItem
-type EpisodeSearchItem = EpisodeItem | LoadMoreItem
+abstract class ListenNotesSearchQuickPick<TResultItem extends QuickPickItem, TSearchResultEntry, TReturnValue> {
+    private quickpick: QuickPick<TResultItem | LoadMoreItem>
+    private items: TResultItem[]
 
-export class ListenNotesPodcastSearchQuickPick {
-    private quickpick: QuickPick<PodcastSearchItem>
-    private currentOffset = 0
-    private nextOffset: number
-    private results: PodcastResult[]
-
-    constructor(private cfg: SearchConfiguration, private listenNotes: ListenNotes,
-        private log: (msg: string) => void) {
+    constructor(private title: string, protected log: (msg: string) => void) {
     }
 
-    @debounce(500)
-    async searchAndUpdateItems(query: string) {
-        // Currently we only want to support sorting episodes by date.
-        const opts = Object.assign({offset: this.currentOffset}, this.cfg);
-        opts.sortByDate = false
-
-        let data: SearchResult<PodcastResult>
-        try {
-            data = await this.listenNotes.searchPodcasts(query, opts)
-        } catch (e) {
-            console.error(e)
-            window.showErrorMessage(e.message)
-            return
-        } finally {
-            this.quickpick.busy = false
-        }
-
-        const items: PodcastSearchItem[] = data.results.map(podcast => ({
-            label: podcast.title_original,
-            description: `Last episode: ` + toHumanTimeAgo(podcast.latest_pub_date_ms),
-            detail: podcast.description_original,
-            url: podcast.rss,
-            alwaysShow: true            
-        }))
-        
-        // TODO items are sorted by vs code based on filter string
-        //   -> impossible to append (new) items at the end
-        //if (data.next_offset < data.total) {
-        //    items.push(new LoadMoreItem())
-        //}
-        
-        for (const i of items) {
-            this.log(`${i.label}`)
-        }
-        this.quickpick.items = items
-    }
-
-    async show() {
-        const pick = window.createQuickPick<PodcastSearchItem>()
+    async show(): Promise<TReturnValue | undefined> {
+        const pick = window.createQuickPick<TResultItem | LoadMoreItem>()
         this.quickpick = pick
-        pick.title = 'Search podcasts using Listen Notes'
-        pick.ignoreFocusOut = true
+        pick.title = this.title
         pick.placeholder = 'Enter a search term'
+        pick.ignoreFocusOut = true
+        // TODO disable automatic sorting based on filter string (not available yet)
+        //      otherwise lazy loading of more items is confusing
+        pick.matchOnDescription = true
+        pick.matchOnDetail = true
 
         pick.onDidChangeValue(query => {
             pick.items = []
@@ -72,16 +36,17 @@ export class ListenNotesPodcastSearchQuickPick {
                 return
             }
             pick.busy = true
-            this.searchAndUpdateItems(query)
+            this.searchAndUpdateItems(query, 0)
         })
 
-        const pickerPromise = new Promise<PodcastItem | undefined>((resolve, _) => {
+        const pickerPromise = new Promise<TResultItem | undefined>((resolve, _) => {
             pick.onDidAccept(() => {
                 const items = pick.selectedItems
                 if (items.length > 0) {
                     const item = pick.selectedItems[0]
                     if (item instanceof LoadMoreItem) {
-                        // TODO load more and concat with existing results
+                        pick.busy = true
+                        this.searchAndUpdateItems(item.query, item.nextOffset)
                     } else {
                         resolve(item)
                         pick.dispose()
@@ -95,8 +60,127 @@ export class ListenNotesPodcastSearchQuickPick {
         })
         pick.show()
         const item = await pickerPromise
-        if (item) {
-            return item.url
+        if (!item) {
+            return
+        }
+        const returnVal = await this.toReturnValue(item)
+        return returnVal
+    }
+
+    @debounce(500)
+    async searchAndUpdateItems(query: string, offset: number): Promise<void> {
+        let data: SearchResult<TSearchResultEntry>
+        try {
+            data = await this.search(query, offset)
+        } catch (e) {
+            console.error(e)
+            window.showErrorMessage(e.message)
+            return
+        } finally {
+            this.quickpick.busy = false
+        }
+
+        const resultItems: TResultItem[] = offset === 0 ? [] : this.items.slice()
+        resultItems.push(...data.results.map(this.toItem))
+        this.items = resultItems.slice()
+        
+        const items = resultItems as (TResultItem | LoadMoreItem)[]
+        if (data.next_offset < data.total) {
+            items.push(new LoadMoreItem(query, data.next_offset, data.total))
+        }
+        
+        this.quickpick.items = items
+    }
+
+    protected abstract async search(query: string, offset: number): Promise<SearchResult<TSearchResultEntry>>;
+
+    protected abstract toItem(result: TSearchResultEntry): TResultItem;
+
+    protected abstract async toReturnValue(item: TResultItem): Promise<TReturnValue>;
+}
+
+interface PodcastItem extends QuickPickItem {
+    url: string
+}
+
+export class ListenNotesPodcastSearchQuickPick 
+        extends ListenNotesSearchQuickPick<PodcastItem, PodcastResult, string> {
+    constructor(private cfg: SearchConfiguration, private listenNotes: ListenNotes, 
+                log: (msg: string) => void) {
+        super('Search podcasts using Listen Notes', log)
+    }
+
+    protected async search(query: string, offset: number): Promise<SearchResult<PodcastResult>> {
+        // Currently we only want to support sorting episodes, not podcasts, by date.
+        const opts = Object.assign({offset: offset}, this.cfg)
+        opts.sortByDate = false
+
+        let data = await this.listenNotes.searchPodcasts(query, opts)
+        return data
+    }
+
+    protected toItem(podcast: PodcastResult): PodcastItem {
+        const item = {
+            label: podcast.title_original,
+            description: `Last episode: ` + toHumanTimeAgo(podcast.latest_pub_date_ms),
+            detail: podcast.description_original,
+            url: podcast.rss,
+            alwaysShow: true            
+        }
+        return item
+    }
+
+    protected async toReturnValue(item: PodcastItem): Promise<string> {
+        return item.url
+    }
+}
+
+interface EpisodeReturnValue {
+    feedUrl: string
+    enclosureUrl: string
+    title: string
+}
+
+interface EpisodeItem extends QuickPickItem {
+    guid: string
+    feedUrl: string
+    enclosureUrl: string
+    episodeTitle: string
+}
+
+export class ListenNotesEpisodeSearchQuickPick
+        extends ListenNotesSearchQuickPick<EpisodeItem, EpisodeResult, EpisodeReturnValue> {
+    constructor(private cfg: SearchConfiguration, private listenNotes: ListenNotes, 
+                log: (msg: string) => void) {
+        super('Search episodes using Listen Notes', log)
+    }
+
+    protected async search(query: string, offset: number): Promise<SearchResult<EpisodeResult>> {
+        const opts = Object.assign({offset: offset}, this.cfg)
+        let data = await this.listenNotes.searchEpisodes(query, opts)
+        return data
+    }
+
+    protected toItem(episode: EpisodeResult): EpisodeItem {
+        const item = {
+            label: episode.title_original,
+            description: episode.description_original,
+            detail: toHumanDuration(episode.audio_length_sec) +
+                ' | ' + toHumanTimeAgo(episode.pub_date_ms) +
+                ' | ' + episode.podcast_title_original,
+            episodeTitle: episode.title_original,
+            guid: episode.id,
+            feedUrl: episode.rss,
+            enclosureUrl: episode.audio
+        }
+        return item
+    }
+
+    protected async toReturnValue(item: EpisodeItem): Promise<EpisodeReturnValue> {
+        return {
+            feedUrl: item.feedUrl!,
+            enclosureUrl: item.enclosureUrl!,
+            title: item.episodeTitle!
         }
     }
 }

@@ -10,11 +10,11 @@ export interface SearchOptions {
     offset: number
 }
 
-export interface SearchResult<T> {
+export interface SearchResult<TSearchResultEntry> {
     count: number
     total: number
     next_offset: number
-    results: T[]
+    results: TSearchResultEntry[]
 }
 
 export interface PodcastResult {
@@ -71,7 +71,11 @@ function getGenreIdsParam(names: string[]): string {
     return names.map(name => Genres[name]).join(',')
 }
 
+const HEADERS = {'X-ListenAPI-Key': LISTEN_API_KEY}
+
 export class ListenNotes {
+    private redirectCache = new Map<string,string>()
+
     constructor(private log: (msg: string) => void) {
     }
 
@@ -80,8 +84,7 @@ export class ListenNotes {
             `sort_by_date=${opts.sortByDate ? '1' : '0'}&type=podcast&offset=${opts.offset}&` +
             `genre_ids=${getGenreIdsParam(opts.genres)}&language=${opts.language}`
         this.log(`Querying Listen Notes API: ${url}`)
-        const headers = {'X-ListenAPI-Key': LISTEN_API_KEY}
-        const data = await requestp({url, headers, json: true}) as SearchResult<PodcastResult>
+        const data = await requestp({url, headers: HEADERS, json: true}) as SearchResult<PodcastResult>
         this.log(`Received ${data.count} of ${data.total} results`)
         return data
     }
@@ -92,9 +95,28 @@ export class ListenNotes {
             `len_min=${opts.minimumLength}&len_max=${opts.maximumLength}&` +
             `genre_ids=${getGenreIdsParam(opts.genres)}&language=${opts.language}`
         this.log(`Querying Listen Notes API: ${url}`)
-        const headers = {'X-ListenAPI-Key': LISTEN_API_KEY}
-        const data = await requestp({url, headers, json: true}) as SearchResult<EpisodeResult>
+        const data = await requestp({url, headers: HEADERS, json: true}) as SearchResult<EpisodeResult>
         this.log(`Received ${data.count} of ${data.total} results`)
         return data
+    }
+
+    async resolveRedirect(url: string): Promise<string> {
+        if (this.redirectCache.has(url)) {
+            return this.redirectCache.get(url)!
+        }
+        const response = await requestp({
+            url: url,
+            headers: HEADERS,
+            followRedirect: false,
+            simple: false, // avoid error on 301
+            resolveWithFullResponse: true
+        })
+        if (!response.headers.location) {
+            this.log(`Expected redirect for ${url} but none found`)
+            return url
+        }
+        const redirectUrl = response.headers.location
+        this.redirectCache.set(url, redirectUrl)
+        return redirectUrl
     }
 }
