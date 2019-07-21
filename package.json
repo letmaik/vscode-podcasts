@@ -30,6 +30,7 @@
   "extensionKind": "ui",
   "activationEvents": [
     "onCommand:podcasts.play",
+    "onCommand:podcasts.showDownloaded",
     "onCommand:podcasts.searchEpisodes",
     "onCommand:podcasts.searchPodcasts"
   ],
@@ -44,6 +45,11 @@
       {
         "command": "podcasts.searchPodcasts",
         "title": "Search podcasts using Listen Notes",
+        "category": "Podcasts"
+      },
+      {
+        "command": "podcasts.showDownloaded",
+        "title": "Show downloaded episodes",
         "category": "Podcasts"
       },
       {

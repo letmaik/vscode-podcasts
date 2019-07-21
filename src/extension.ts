@@ -22,6 +22,11 @@ interface PodcastItem extends QuickPickItem {
     url: string
 }
 
+interface DownloadedEpisodeItem extends QuickPickItem {
+    feedUrl: string
+    guid: string
+}
+
 function getConfig(): Configuration {
     const rootCfg = workspace.getConfiguration('podcasts')
     const searchCfg = workspace.getConfiguration('podcasts.search')
@@ -116,6 +121,38 @@ export async function activate(context: ExtensionContext) {
         }
         commands.executeCommand(NAMESPACE + '.' + pick.cmd)
     })
+
+    disposables.push(commands.registerCommand(NAMESPACE + '.showDownloaded', async () => {
+        // TODO store download date and use for sorting
+        const items: DownloadedEpisodeItem[] = []
+        const meta = storage.getMetadata()
+        for (const [feedUrl, podcast] of Object.entries(meta.podcasts)) {
+            const guids = Object.keys(podcast.downloaded)
+            for (const guid of guids) {
+                const episode = podcast.episodes[guid]
+                items.push({
+                    label: episode.title,
+                    description: episode.description,
+                    detail: toHumanDuration(episode.duration) + 
+                        ' | ' + toHumanTimeAgo(episode.published) + 
+                        ' | ' + podcast.title,
+                    feedUrl: feedUrl,
+                    guid: guid
+                })
+            }
+        }
+
+        const pick = await window.showQuickPick(items, {
+            ignoreFocusOut: true,
+            placeHolder: 'Pick an episode',
+            matchOnDescription: true,
+            matchOnDetail: true
+        })
+        if (!pick) {
+            return
+        }
+        await player.play(pick.feedUrl, pick.guid)
+    }))
 
     disposables.push(commands.registerCommand(NAMESPACE + '.play', async (feedUrl?: string) => {
         if (!feedUrl) {

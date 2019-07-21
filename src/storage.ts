@@ -37,9 +37,9 @@ interface StorageMetadata {
 }
 
 export class Storage {
-    metadataPath: string
-    metadata: StorageMetadata
-    enclosuresPath: string
+    private metadataPath: string
+    private metadata: StorageMetadata
+    private enclosuresPath: string
 
     constructor(private storagePath: string, private log: (msg: string) => void) {
         this.metadataPath = path.join(storagePath, 'metadata.json')
