@@ -7,8 +7,8 @@ import {platform} from 'process'
 import * as findExec from 'find-exec'
 import {spawn, ChildProcess, SpawnOptions} from 'child_process'
 
-import mp3Duration = require('./3rdparty/mp3-duration.js')
 import { EventEmitter } from 'vscode';
+import { getAudioDuration } from './util.js';
 
 const IS_WINDOWS = platform === 'win32'
 
@@ -127,7 +127,6 @@ export class ShellPlayer {
   private process: ChildProcess | undefined
   private statusCommandIntervalId: NodeJS.Timeout
 
-  private durationCache = new Map<string, number>()
   public duration: number
   private startPosition: number // s
   private currentPositionFromStatus: number | undefined // s
@@ -203,17 +202,6 @@ export class ShellPlayer {
     return args
   }
 
-  private async getDuration(audioPath: string): Promise<number> {
-    const duration = await mp3Duration(audioPath)
-    if (duration == 0) {
-      throw new Error('Unable to extract audio duration')
-    }
-    if (!this.durationCache.has(audioPath)) {
-      this.durationCache.set(audioPath, duration)
-    }
-    return this.durationCache.get(audioPath)!
-  }
-
   async play(audioPath: string, startPosition: number, onError: (e: Error) => void): Promise<void> {
     let options: SpawnOptions = {
       stdio: 'pipe',
@@ -242,7 +230,7 @@ export class ShellPlayer {
     this.currentPositionFromStatus = undefined
     this.startUnixTimestamp = Date.now()
     this.stopUnixTimestamp = undefined
-    this.duration = await this.getDuration(audioPath)
+    this.duration = await getAudioDuration(audioPath)
 
     const args = this.getPlayerArgs(audioPath, startPosition)
     this.log(`Running ${this.playerPath} ${args.join(' ')}`)

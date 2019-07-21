@@ -1,15 +1,22 @@
 import * as fs from 'fs';
-import * as request from 'request';
-import * as requestProgress from 'request-progress';
 import {promisify} from 'util';
 import * as tmp from 'tmp';
+import * as request from 'request';
+import * as requestProgress from 'request-progress';
+import mp3Duration = require('./3rdparty/mp3-duration.js')
 
 const copyFile = promisify(fs.copyFile)
 const unlink = promisify(fs.unlink)
 const tmpName = promisify(tmp.tmpName)
 
-export function toHumanDuration(sec: number) {
-    return Math.round(sec / 60) + ' min';
+export function toHumanDuration(sec?: number, fallback?: string): string {
+    if (sec === undefined) {
+        if (fallback === undefined) {
+            throw new Error('Unknown duration and no fallback string defined')
+        }
+        return fallback
+    }
+    return Math.round(sec / 60) + ' min'
 }
 
 export function toHumanTimeAgo(timestamp: number) {
@@ -74,4 +81,16 @@ export async function downloadFile(url: string, path: string, onProgress?: (rati
     } finally {
         await unlink(tmpPath)
     }
+}
+
+const durationCache = new Map<string, number>()
+export async function getAudioDuration(audioPath: string): Promise<number> {
+    if (!durationCache.has(audioPath)) {
+        const duration = await mp3Duration(audioPath)
+        if (duration == 0) {
+            throw new Error('Unable to extract audio duration')
+        }
+        durationCache.set(audioPath, duration)
+    }
+    return durationCache.get(audioPath)!
 }

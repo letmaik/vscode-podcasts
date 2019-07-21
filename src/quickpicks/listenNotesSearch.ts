@@ -25,8 +25,8 @@ abstract class ListenNotesSearchQuickPick<TResultItem extends QuickPickItem, TSe
         pick.title = this.title
         pick.placeholder = 'Enter a search term'
         pick.ignoreFocusOut = true
-        // TODO disable automatic sorting based on filter string (not available yet)
-        //      otherwise lazy loading of more items is confusing
+        // TODO disable automatic sorting & filtering based on filter string (not available yet)
+        //      otherwise lazy loading of more items is confusing and some results may be omitted
         pick.matchOnDescription = true
         pick.matchOnDetail = true
 

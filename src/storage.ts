@@ -5,7 +5,7 @@ import {promisify} from 'util';
 import * as requestp from 'request-promise-native';
 import * as parsePodcast_ from 'node-podcast-parser';
 import { parseString as parseXML } from 'xml2js';
-import { downloadFile } from './util';
+import { downloadFile, getAudioDuration } from './util';
 import { mkdirp } from './3rdparty/util';
 import { URL } from 'url';
 
@@ -18,7 +18,7 @@ const parsePodcast = promisify(parsePodcast_)
 export interface EpisodeMetadata {
     title: string
     description: string
-    duration: number // seconds
+    duration?: number // seconds
     published: number // timestamp
     enclosureUrl: string
 }
@@ -190,6 +190,13 @@ export class Storage {
             this.log(`Downloading ${episode.enclosureUrl} to ${enclosurePath}`)
             await downloadFile(episode.enclosureUrl, enclosurePath, onProgress)
             feed.downloaded[guid] = enclosureFilename
+            if (episode.duration === undefined) {
+                try {
+                    episode.duration = await getAudioDuration(enclosurePath)
+                } catch (e) {
+                    this.log(`Unable to read duration from ${enclosurePath}`)
+                }
+            }
             this.saveMetadata()
         }
         const enclosureFilename = feed.downloaded[guid]

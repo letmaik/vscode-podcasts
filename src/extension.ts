@@ -133,7 +133,7 @@ export async function activate(context: ExtensionContext) {
                 items.push({
                     label: episode.title,
                     description: episode.description,
-                    detail: toHumanDuration(episode.duration) + 
+                    detail: toHumanDuration(episode.duration, 'Unknown duration') + 
                         ' | ' + toHumanTimeAgo(episode.published) + 
                         ' | ' + podcast.title,
                     feedUrl: feedUrl,
@@ -169,10 +169,11 @@ export async function activate(context: ExtensionContext) {
                     detail: detail,
                     url: feed.url
                 }
-            });
+            })
 
             const feedPick = await window.showQuickPick(feedItems, {
                 ignoreFocusOut: true,
+                matchOnDescription: true,
                 placeHolder: 'Pick a podcast'
             })
             if (!feedPick) {
@@ -188,7 +189,7 @@ export async function activate(context: ExtensionContext) {
                 return {
                     label: episode.title,
                     description: episode.description,
-                    detail: toHumanDuration(episode.duration) + ' | ' + toHumanTimeAgo(episode.published) + downloaded,
+                    detail: toHumanDuration(episode.duration, 'Unknown duration') + ' | ' + toHumanTimeAgo(episode.published) + downloaded,
                     guid: guid
                 }
             })
