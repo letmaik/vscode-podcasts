@@ -4,8 +4,10 @@ import {promisify} from 'util';
 
 import * as requestp from 'request-promise-native';
 import * as parsePodcast_ from 'node-podcast-parser';
+import { parseString as parseXML } from 'xml2js';
 import { downloadFile } from './util';
 import { mkdirp } from './3rdparty/util';
+import { URL } from 'url';
 
 const exists = promisify(fs.exists)
 const readFile = promisify(fs.readFile)
@@ -125,6 +127,17 @@ export class Storage {
             feed.downloaded = this.metadata.podcasts[url].downloaded
         }
 
+        // handle paged feeds
+        let nextPageUrl: string | undefined
+        try {
+            nextPageUrl = await this.getNextPageUrl(data)
+        } catch (e) {
+            this.log(`Error extracting paging metadata in ${url}`)
+        }
+        if (nextPageUrl) {
+            // TODO load feed pages
+        }
+
         this.metadata.podcasts[url] = feed
 
         const invalidGuids = Object.keys(feed.downloaded).filter(guid => !(guid in feed.episodes))
@@ -136,6 +149,27 @@ export class Storage {
         this.saveMetadata()
     }
 
+    async getNextPageUrl(feedXml: string): Promise<string | undefined> {
+        const feedObj = await new Promise((resolve, reject) => {
+            parseXML(feedXml, (err, result) => {
+                if (err) {
+                    reject(err)
+                }          
+                resolve(result)
+            })
+        }) as any
+        const links = feedObj.rss.channel[0]['atom:link']
+        if (!links) {
+            return
+        }
+        const nextLink = links.find(link => link['$'].rel === 'next')
+        if (!nextLink) {
+            return
+        }
+        const url = nextLink['$'].href
+        return url
+    }
+
     async fetchEpisodeEnclosure(feedUrl: string, guid: string) {
         const feed = await this.fetchPodcast(feedUrl)
         const episode = feed.episodes[guid]
@@ -143,7 +177,8 @@ export class Storage {
             let enclosureFilename: string
             let enclosurePath: string
             do {
-                const ext = path.extname(episode.enclosureUrl) || '.mp3'
+                const urlPath = new URL(episode.enclosureUrl).pathname
+                const ext = path.extname(urlPath) || '.mp3'
                 enclosureFilename = Math.random().toString(36).substring(2, 15) + ext
                 enclosurePath = path.join(this.enclosuresPath, enclosureFilename)
             } while (fs.existsSync(enclosurePath))

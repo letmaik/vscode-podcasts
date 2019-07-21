@@ -251,6 +251,7 @@
     "@types/request": "2.47.0",
     "@types/request-promise-native": "1.0.14",
     "@types/tmp": "0.0.33",
+    "@types/xml2js": "^0.4.4",
     "typescript": "^2.3.4",
     "vscode": "^1.1.0"
   },
@@ -259,6 +260,7 @@
     "node-podcast-parser": "^2.3.0",
     "request": "^2.88.0",
     "request-promise-native": "^1.0.7",
-    "tmp": "^0.1.0"
+    "tmp": "^0.1.0",
+    "xml2js": "^0.4.19"
   }
 }

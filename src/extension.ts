@@ -32,8 +32,8 @@ function getConfig(): Configuration {
             genres: searchCfg.get<string[]>('genres')!,
             sortByDate: searchCfg.get<boolean>('sortByDate')!,
             language: searchCfg.get<string>('language')!,
-            minimumLength: searchCfg.get<number>('minLength')!,
-            maximumLength: searchCfg.get<number>('maxLength')!,
+            minimumLength: searchCfg.get<number>('minimumLength')!,
+            maximumLength: searchCfg.get<number>('maximumLength')!,
         }
     }
 }
