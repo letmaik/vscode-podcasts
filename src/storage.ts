@@ -105,6 +105,10 @@ export class Storage {
         const podcast = await parsePodcast(data)
         const episodes: { [guid: string]: EpisodeMetadata } = {}
         for (const episode of podcast.episodes) {
+            if (!episode.enclosure) {
+                this.log(`Ignoring "${episode.title}" (GUID: ${episode.guid}), no enclosure found`)
+                continue
+            }
             episodes[episode.guid] = {
                 title: episode.title,
                 description: episode.description,
@@ -170,7 +174,7 @@ export class Storage {
         return url
     }
 
-    async fetchEpisodeEnclosure(feedUrl: string, guid: string) {
+    async fetchEpisodeEnclosure(feedUrl: string, guid: string, onProgress?: (ratio: number) => void) {
         const feed = await this.fetchPodcast(feedUrl)
         const episode = feed.episodes[guid]
         if (!(guid in feed.downloaded)) {
@@ -184,7 +188,7 @@ export class Storage {
             } while (fs.existsSync(enclosurePath))
     
             this.log(`Downloading ${episode.enclosureUrl} to ${enclosurePath}`)
-            await downloadFile(episode.enclosureUrl, enclosurePath)
+            await downloadFile(episode.enclosureUrl, enclosurePath, onProgress)
             feed.downloaded[guid] = enclosureFilename
             this.saveMetadata()
         }

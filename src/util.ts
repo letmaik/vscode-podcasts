@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as request from 'request';
+import * as requestProgress from 'request-progress';
 import {promisify} from 'util';
 import * as tmp from 'tmp';
 
@@ -38,16 +39,23 @@ export function toHumanTimeAgo(timestamp: number) {
     return Math.round(years) + ` year${plural} ago`
 }
 
-export async function downloadFile(url: string, path: string): Promise<void> {
+export async function downloadFile(url: string, path: string, onProgress?: (ratio: number) => void): Promise<void> {
     const tmpPath = await tmpName({})
     const file = fs.createWriteStream(tmpPath)
     try {
         await new Promise((resolve, reject) => {
-            const req = request({url})
+            const req = requestProgress(request({url}))
             req.on('error', e => {
                 file.close()
                 reject(e)
             })
+            if (onProgress) {
+                req.on('progress', state => {
+                    if (state.percent) {
+                        onProgress(state.percent)
+                    }
+                })
+            }
             req.on('response', response => {
                 if (response.statusCode !== 200) {
                     file.close()

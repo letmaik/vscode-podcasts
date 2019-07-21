@@ -42,7 +42,12 @@ export class Player {
         this.currentEpisodeGuid = guid
         
         this.statusBar.update({status: StatusBarStatus.DOWNLOADING})
-        const enclosurePath = await this.storage.fetchEpisodeEnclosure(feedUrl, guid)
+        const enclosurePath = await this.storage.fetchEpisodeEnclosure(feedUrl, guid, progress => {
+            this.statusBar.update({
+                status: StatusBarStatus.DOWNLOADING,
+                downloadProgress: progress
+            })
+        })
         
         this.statusBar.update({status: StatusBarStatus.OPENING})
         const startPosition = 0

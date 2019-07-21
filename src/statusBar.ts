@@ -12,12 +12,14 @@ export enum StatusBarStatus {
 
 export interface StatusBarState {
     status: StatusBarStatus,
+    downloadProgress?: number,
     duration?: number,
     elapsed?: number
 }
 
 export class StatusBar {
     private readonly textPrefix = '$(radio-tower) '
+    private readonly cmd = NAMESPACE + '.main'
 
     private statusBarItem: StatusBarItem
     private state: StatusBarState = {
@@ -26,7 +28,6 @@ export class StatusBar {
 
     constructor(private disposables: Disposable[]) {
         const statusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 100)
-        statusBarItem.command = NAMESPACE + '.main'
         this.statusBarItem = statusBarItem
         this.disposables.push(statusBarItem)
     }
@@ -40,15 +41,21 @@ export class StatusBar {
             this.statusBarItem.show()
         } else if (this.state.status !== StatusBarStatus.STOPPED && state.status === StatusBarStatus.STOPPED) {
             this.statusBarItem.hide()
+            this.statusBarItem.command = undefined
         }
 
         if (state.status === StatusBarStatus.DOWNLOADING) {
-            this.text = 'Downloading...'
+            let text = 'Downloading...'
+            if (state.downloadProgress) {
+                text += `${Math.round(state.downloadProgress*100)}%`
+            }
+            this.text = text
         } else if (state.status === StatusBarStatus.OPENING) {
             this.text = 'Opening...'
         } else if (state.duration && state.elapsed) {
             const remaining = state.duration - state.elapsed
             this.text = toHumanDuration(remaining) + ' remaining'
+            this.statusBarItem.command = this.cmd
         }
 
         this.state = state
