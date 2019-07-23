@@ -79,6 +79,9 @@ export class Storage {
         return this.metadata.podcasts[url]
     }
 
+    // TODO automatically purge old feed metadata if no associated download exists
+    //      this will keep file and memory size down
+
     async fetchPodcast(url: string) {
         if (!this.hasPodcast(url)) {
             await this.updatePodcast(url)
@@ -88,12 +91,8 @@ export class Storage {
         return this.getPodcast(url)
     }
 
-    async updatePodcast(url: string) {
-        // TODO support paged feeds
-        //   <atom:link href="https://changelog.com/podcast/feed?page=2" rel="next" type="application/rss+xml"/>
-        //   the podcast parser doesn't parse this, so need to extract it directly from XML
-
-        this.log(`Updating podcast from ${url}`)
+    private async loadPodcastFeed(url: string) {
+        this.log(`Requesting ${url}`)
         let data: any
         try {
             data = await requestp({uri: url})
@@ -127,10 +126,6 @@ export class Storage {
             downloaded: {}
         }
 
-        if (url in this.metadata.podcasts) {
-            feed.downloaded = this.metadata.podcasts[url].downloaded
-        }
-
         // handle paged feeds
         let nextPageUrl: string | undefined
         try {
@@ -138,22 +133,11 @@ export class Storage {
         } catch (e) {
             this.log(`Error extracting paging metadata in ${url}`)
         }
-        if (nextPageUrl) {
-            // TODO load feed pages
-        }
 
-        this.metadata.podcasts[url] = feed
-
-        const invalidGuids = Object.keys(feed.downloaded).filter(guid => !(guid in feed.episodes))
-        for (const guid in invalidGuids) {
-            this.log(`Downloaded episode ${guid} does not appear in feed anymore, deleting`)
-            this.deleteEpisodeEnclosure(url, guid, true)
-        }
-
-        this.saveMetadata()
+        return {feed, nextPageUrl}
     }
 
-    async getNextPageUrl(feedXml: string): Promise<string | undefined> {
+    private async getNextPageUrl(feedXml: string): Promise<string | undefined> {
         const feedObj = await new Promise((resolve, reject) => {
             parseXML(feedXml, (err, result) => {
                 if (err) {
@@ -172,6 +156,64 @@ export class Storage {
         }
         const url = nextLink['$'].href
         return url
+    }
+
+    private arePagesOverlapping(page1: PodcastMetadata, page2: PodcastMetadata | undefined): boolean {
+        if (!page2) {
+            return false
+        }
+        for (const guid in page1.episodes) {
+            if (guid in page2.episodes) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private appendPage(page1: PodcastMetadata, page2: PodcastMetadata | undefined): void {
+        if (!page2) {
+            return
+        }
+        for (const guid in page2.episodes) {
+            page1.episodes[guid] = page2.episodes[guid]
+        }
+    }
+
+    async updatePodcast(url: string) {
+        const old = this.metadata.podcasts[url]
+
+        this.log(`Updating podcast from ${url}`)
+
+        let feed: PodcastMetadata | undefined = undefined
+        let nextPageUrl: string | undefined = url
+        while (nextPageUrl) {
+            const page = await this.loadPodcastFeed(nextPageUrl)
+            // When feeds are split into pages and we already downloaded the feed before,
+            // then we only want to fetch new pages. To do that we stop when we encounter
+            // the first overlap.
+            if (this.arePagesOverlapping(page.feed, old)) {
+                this.appendPage(page.feed, old)
+                nextPageUrl = undefined
+            } else {
+                this.appendPage(page.feed, feed)
+                nextPageUrl = page.nextPageUrl
+            }
+            feed = page.feed
+        }
+
+        if (old) {
+            feed!.downloaded = old.downloaded
+        }
+
+        this.metadata.podcasts[url] = feed!
+
+        const invalidGuids = Object.keys(feed!.downloaded).filter(guid => !(guid in feed!.episodes))
+        for (const guid in invalidGuids) {
+            this.log(`Downloaded episode ${guid} does not appear in feed anymore, deleting`)
+            this.deleteEpisodeEnclosure(url, guid, true)
+        }
+
+        this.saveMetadata()
     }
 
     async fetchEpisodeEnclosure(feedUrl: string, guid: string, onProgress?: (ratio: number) => void) {
