@@ -16,6 +16,7 @@ interface CommandItem extends QuickPickItem {
 
 interface EpisodeItem extends QuickPickItem {
     guid: string
+    published: number
 }
 
 interface PodcastItem extends QuickPickItem {
@@ -190,7 +191,8 @@ export async function activate(context: ExtensionContext) {
                     label: episode.title,
                     description: episode.description,
                     detail: toHumanDuration(episode.duration, 'Unknown duration') + ' | ' + toHumanTimeAgo(episode.published) + downloaded,
-                    guid: guid
+                    guid: guid,
+                    published: episode.published
                 }
             })
             return items
@@ -206,11 +208,14 @@ export async function activate(context: ExtensionContext) {
             tooltip: 'Refresh'
         }
 
+        const items = getEpisodeItems(podcast)
+        items.sort((a,b) => b.published - a.published)
+
         const episodePicker = window.createQuickPick<EpisodeItem>()
         episodePicker.ignoreFocusOut = true
         episodePicker.title = podcast.title
         episodePicker.placeholder = 'Pick an episode'
-        episodePicker.items = getEpisodeItems(podcast)
+        episodePicker.items = items
         episodePicker.buttons = [refreshButton]
         episodePicker.onDidTriggerButton(async btn => {
             if (btn == refreshButton) {
