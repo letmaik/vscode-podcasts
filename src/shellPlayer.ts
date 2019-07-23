@@ -95,11 +95,11 @@ const PLAYER_STATUS_REGEX: {[player: string]: RegExp} = {
   'powershell': MPLAYER_STATUS_REGEX,
 
   // > 1856+2513  00:44.54+01:00.31 --- 100=100 320 kb/s  960 B acc    0 clip p+0.00
-  // TODO
+  // TODO add mpg123 status line regex
   //'mpg123': //
 
   // Frame#   334 [ 4035], Time: 00:08.01 [01:36.83],
-  // TODO
+  // TODO add mpg321 status line regex
   // 'mpg321': //
 }
 

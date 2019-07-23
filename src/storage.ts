@@ -82,11 +82,15 @@ export class Storage {
     // TODO automatically purge old feed metadata if no associated download exists
     //      this will keep file and memory size down
 
-    async fetchPodcast(url: string) {
-        if (!this.hasPodcast(url)) {
-            await this.updatePodcast(url)
+    async fetchPodcast(url: string, updateIfOlderThan: number | undefined = undefined) {
+        if (this.hasPodcast(url)) {
+            if (updateIfOlderThan && this.getPodcast(url).lastRefreshed < updateIfOlderThan) {
+                await this.updatePodcast(url)
+            } else {
+                this.log(`Using cached podcast metadata for ${url}`)
+            }
         } else {
-            this.log(`Using cached podcast metadata for ${url}`)
+            await this.updatePodcast(url)
         }
         return this.getPodcast(url)
     }

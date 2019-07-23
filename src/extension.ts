@@ -269,8 +269,7 @@ export async function activate(context: ExtensionContext) {
             return
         }
         const realFeedUrl = await listenNotes.resolveRedirect(episode.feedUrl)
-        // TODO update cached feed if episode pub date > last feed update
-        const podcast = await storage.fetchPodcast(realFeedUrl)
+        const podcast = await storage.fetchPodcast(realFeedUrl, episode.published)
         let match = Object.entries(podcast.episodes).find(
             ([_, ep]) => ep.title === episode.title)
         if (!match) {

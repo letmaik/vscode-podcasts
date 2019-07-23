@@ -139,6 +139,7 @@ interface EpisodeReturnValue {
     feedUrl: string
     enclosureUrl: string
     title: string
+    published: number
 }
 
 interface EpisodeItem extends QuickPickItem {
@@ -146,6 +147,7 @@ interface EpisodeItem extends QuickPickItem {
     feedUrl: string
     enclosureUrl: string
     episodeTitle: string
+    published: number
 }
 
 export class ListenNotesEpisodeSearchQuickPick
@@ -171,16 +173,18 @@ export class ListenNotesEpisodeSearchQuickPick
             episodeTitle: episode.title_original,
             guid: episode.id,
             feedUrl: episode.rss,
-            enclosureUrl: episode.audio
+            enclosureUrl: episode.audio,
+            published: episode.pub_date_ms
         }
         return item
     }
 
     protected async toReturnValue(item: EpisodeItem): Promise<EpisodeReturnValue> {
         return {
-            feedUrl: item.feedUrl!,
-            enclosureUrl: item.enclosureUrl!,
-            title: item.episodeTitle!
+            feedUrl: item.feedUrl,
+            enclosureUrl: item.enclosureUrl,
+            title: item.episodeTitle,
+            published: item.published
         }
     }
 }
