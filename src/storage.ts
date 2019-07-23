@@ -59,9 +59,21 @@ export class Storage {
     }
 
     async saveMetadata() {
+        this.purgeOldMetadata()
         this.log(`Saving metadata to ${this.metadataPath}`)
         const json = JSON.stringify(this.metadata, null, 1)
         await writeFile(this.metadataPath, json, 'utf-8')
+    }
+
+    purgeOldMetadata() {
+        const threshold = Date.now() - (1000 * 60 * 60 * 24 * 30) // 30 days
+        const podcasts = this.metadata.podcasts
+        const old = Object.entries(podcasts).filter(([_, podcast]) => 
+            Object.keys(podcast.downloaded).length === 0 && podcast.lastRefreshed < threshold)
+        for (const [url,_] of old) {
+            this.log(`Purging old feed metadata for ${url}`)
+            delete podcasts[url]
+        }
     }
 
     getMetadata() {
@@ -78,9 +90,6 @@ export class Storage {
         }
         return this.metadata.podcasts[url]
     }
-
-    // TODO automatically purge old feed metadata if no associated download exists
-    //      this will keep file and memory size down
 
     async fetchPodcast(url: string, updateIfOlderThan: number | undefined = undefined) {
         if (this.hasPodcast(url)) {
