@@ -1,5 +1,3 @@
-import { QuickPickItem } from "vscode";
-
 export interface SearchConfiguration {
     genres: string[]
     sortByDate: boolean
@@ -15,6 +13,6 @@ export interface Feed {
 
 export interface Configuration {
     feeds: Feed[]
-    player: string | undefined
+    player?: string
     search: SearchConfiguration
 }
