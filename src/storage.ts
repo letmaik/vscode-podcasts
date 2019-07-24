@@ -26,6 +26,8 @@ export interface EpisodeMetadata {
 export interface DownloadedEpisodeMetadata {
     filename: string
     date: number // timestamp
+    completed: boolean
+    lastPosition?: number
 }
 
 export interface PodcastMetadata {
@@ -251,7 +253,8 @@ export class Storage {
             await downloadFile(episode.enclosureUrl, enclosurePath, onProgress)
             feed.downloaded[guid] = {
                 filename: enclosureFilename,
-                date: Date.now()
+                date: Date.now(),
+                completed: false
             }
             if (episode.duration === undefined) {
                 try {
@@ -275,7 +278,19 @@ export class Storage {
         this.log(`Deleting downloaded episode ${enclosurePath}`)
         await unlink(enclosurePath)
         if (!skipMetadataSave) {
-            this.saveMetadata()
+            await this.saveMetadata()
         }
+    }
+
+    getLastListeningPosition(feedUrl: string, guid: string) {
+        const meta = this.metadata.podcasts[feedUrl].downloaded[guid]
+        return meta.lastPosition ? meta.lastPosition : 0
+    }
+
+    async storeListeningStatus(feedUrl: string, guid: string, completed: boolean, position: number | undefined = undefined) {
+        const meta = this.metadata.podcasts[feedUrl].downloaded[guid]
+        meta.completed = completed
+        meta.lastPosition = position
+        await this.saveMetadata()
     }
 }

@@ -1,6 +1,6 @@
 import { ShellPlayer, ShellPlayerCommand, ShellPlayerStatus } from "./shellPlayer";
 import { Storage } from "./storage";
-import { window, Disposable, StatusBarItem } from "vscode";
+import { window, Disposable } from "vscode";
 import { StatusBar, StatusBarStatus } from "./statusBar";
 
 const StatusMapping = {
@@ -33,8 +33,30 @@ export class Player {
                 this.shellPlayerQueryIntervalId = setInterval(sendUpdate, 1000)
             } else {
                 clearInterval(this.shellPlayerQueryIntervalId)
+                if (shellPlayerStatus == ShellPlayerStatus.STOPPED) {
+                    this.storeListeningStatus()
+                }
             }
         }))
+
+        disposables.push({
+            dispose: () => {
+                clearInterval(this.shellPlayerQueryIntervalId)
+                this.storeListeningStatus()
+            }
+        })
+    }
+
+    private async storeListeningStatus() {
+        if (!this.currentEpisodeFeedUrl) {
+            return
+        }
+        this.log(`Storing listening status`)
+        if (this.shellPlayer.position === this.shellPlayer.duration) {
+            this.storage.storeListeningStatus(this.currentEpisodeFeedUrl, this.currentEpisodeGuid!, true)
+        } else {
+            this.storage.storeListeningStatus(this.currentEpisodeFeedUrl, this.currentEpisodeGuid!, false, this.shellPlayer.position)
+        }
     }
 
     async play(feedUrl: string, guid: string) {
@@ -48,9 +70,14 @@ export class Player {
                 downloadProgress: progress
             })
         })
+
+        let startPosition = this.storage.getLastListeningPosition(feedUrl, guid)
+        if (startPosition > 0 && !this.shellPlayer.supportsStartOffset()) {
+            startPosition = 0
+            window.showWarningMessage(`Playing from beginning, player does not support arbitrary positions`)
+        }
         
         this.statusBar.update({status: StatusBarStatus.OPENING})
-        const startPosition = 0
         try {
             await this.shellPlayer.play(enclosurePath,
                 startPosition,

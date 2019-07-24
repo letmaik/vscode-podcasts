@@ -16,6 +16,9 @@ export function toHumanDuration(sec?: number, fallback?: string): string {
         }
         return fallback
     }
+    if (sec < 60) {
+        return `${Math.round(sec)} s`
+    }
     return Math.round(sec / 60) + ' min'
 }
 

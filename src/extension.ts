@@ -70,12 +70,14 @@ export async function activate(context: ExtensionContext) {
 
     // TODO allow to add podcasts from search to the config
 
-    workspace.onDidChangeConfiguration(e => {
+    disposables.push(workspace.onDidChangeConfiguration(e => {
         cfg = getConfig()
         if (e.affectsConfiguration(NAMESPACE + '.player')) {
             shellPlayer.setPlayerPath(cfg.player)
         }
-    })
+    }))
+
+    // TODO add command to restart from beginning
 
     const registerPlayerCommand = (cmd: string, fn: (player: Player) => void) => {
         disposables.push(commands.registerCommand(NAMESPACE + '.' + cmd, async () => {
@@ -95,7 +97,7 @@ export async function activate(context: ExtensionContext) {
     registerPlayerCommand('slowdown', p => p.slowdown())
     registerPlayerCommand('speedup', p => p.speedup())
 
-    commands.registerCommand(NAMESPACE + '.main', async () => {
+    disposables.push(commands.registerCommand(NAMESPACE + '.main', async () => {
         const items: CommandItem[] = [{
             cmd: 'pause',
             label: 'Pause/Unpause'
@@ -122,7 +124,7 @@ export async function activate(context: ExtensionContext) {
             return
         }
         commands.executeCommand(NAMESPACE + '.' + pick.cmd)
-    })
+    }))
 
     disposables.push(commands.registerCommand(NAMESPACE + '.showDownloaded', async () => {
         const items: DownloadedEpisodeItem[] = []
@@ -132,12 +134,14 @@ export async function activate(context: ExtensionContext) {
             for (const guid of guids) {
                 const episode = podcast.episodes[guid]
                 const download = podcast.downloaded[guid]
+                const completed = download.completed ? ' | ✓' : ''
+                const playing = download.lastPosition ? ' | ▶ ' + toHumanDuration(download.lastPosition) : ''
                 items.push({
                     label: episode.title,
                     description: episode.description,
                     detail: toHumanDuration(episode.duration, 'Unknown duration') + 
                         ' | ' + toHumanTimeAgo(episode.published) + 
-                        ' | ' + podcast.title,
+                        ' | ' + podcast.title + completed + playing,
                     feedUrl: feedUrl,
                     guid: guid,
                     downloadDate: download.date
@@ -190,11 +194,15 @@ export async function activate(context: ExtensionContext) {
         const getEpisodeItems = (podcast: PodcastMetadata) => {
             const items: EpisodeItem[] = Object.keys(podcast.episodes).map(guid => {
                 const episode = podcast.episodes[guid]
-                const downloaded = guid in podcast.downloaded ? ' | $(database)' : ''
+                const download = podcast.downloaded[guid]
+                const downloaded = download ? ' | $(database)' : ''
+                const completed = download && download.completed ? ' | ✓' : ''
+                const playing = download && download.lastPosition ? ' | ▶ ' + toHumanDuration(download.lastPosition) : ''
                 return {
                     label: episode.title,
                     description: episode.description,
-                    detail: toHumanDuration(episode.duration, 'Unknown duration') + ' | ' + toHumanTimeAgo(episode.published) + downloaded,
+                    detail: toHumanDuration(episode.duration, 'Unknown duration') + 
+                        ' | ' + toHumanTimeAgo(episode.published) + downloaded + completed + playing,
                     guid: guid,
                     published: episode.published
                 }

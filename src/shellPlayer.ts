@@ -265,13 +265,13 @@ export class ShellPlayer {
     this.process.stderr.on('data', logOutputLines);
 
     this.process.on('close', (code, signal) => {
-      this.setStatus(ShellPlayerStatus.STOPPED)
-      clearInterval(this.statusCommandIntervalId)
-      if (!this.process!.killed && code != 0) {
-        onError(new Error(`${this.playerName} terminated unexpectedly with exit code ${code}`))
-      }
       if (!this.stopUnixTimestamp) {
         this.stopUnixTimestamp = Date.now()
+      }
+      clearInterval(this.statusCommandIntervalId)
+      this.setStatus(ShellPlayerStatus.STOPPED)
+      if (!this.process!.killed && code != 0) {
+        onError(new Error(`${this.playerName} terminated unexpectedly with exit code ${code}`))
       }
     })
 
@@ -328,10 +328,9 @@ export class ShellPlayer {
       throw new Error('stop() must be called after start()')
     }
     this.log('Stopping player')
+    this.stopUnixTimestamp = Date.now()
     this.process.kill()
     this.process = undefined
-    this.stopUnixTimestamp = Date.now()
-    this.setStatus(ShellPlayerStatus.STOPPED)
   }
 
   get position() {
