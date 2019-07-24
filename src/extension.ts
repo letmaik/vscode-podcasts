@@ -26,6 +26,7 @@ interface PodcastItem extends QuickPickItem {
 interface DownloadedEpisodeItem extends QuickPickItem {
     feedUrl: string
     guid: string
+    downloadDate: number
 }
 
 function getConfig(): Configuration {
@@ -124,13 +125,13 @@ export async function activate(context: ExtensionContext) {
     })
 
     disposables.push(commands.registerCommand(NAMESPACE + '.showDownloaded', async () => {
-        // TODO store download date and use for sorting
         const items: DownloadedEpisodeItem[] = []
         const meta = storage.getMetadata()
         for (const [feedUrl, podcast] of Object.entries(meta.podcasts)) {
             const guids = Object.keys(podcast.downloaded)
             for (const guid of guids) {
                 const episode = podcast.episodes[guid]
+                const download = podcast.downloaded[guid]
                 items.push({
                     label: episode.title,
                     description: episode.description,
@@ -138,10 +139,13 @@ export async function activate(context: ExtensionContext) {
                         ' | ' + toHumanTimeAgo(episode.published) + 
                         ' | ' + podcast.title,
                     feedUrl: feedUrl,
-                    guid: guid
+                    guid: guid,
+                    downloadDate: download.date
                 })
             }
         }
+
+        items.sort((a,b) => b.downloadDate - a.downloadDate)
 
         const pick = await window.showQuickPick(items, {
             ignoreFocusOut: true,

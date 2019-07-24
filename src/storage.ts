@@ -23,13 +23,18 @@ export interface EpisodeMetadata {
     enclosureUrl: string
 }
 
+export interface DownloadedEpisodeMetadata {
+    filename: string
+    date: number // timestamp
+}
+
 export interface PodcastMetadata {
     title: string
     description: string
     homepageUrl: string
     episodes: { [guid: string]: EpisodeMetadata }
     lastRefreshed: number // timestamp
-    downloaded: { [guid: string]: string } // guid -> filename
+    downloaded: { [guid: string]: DownloadedEpisodeMetadata }
 }
 
 interface StorageMetadata {
@@ -41,7 +46,7 @@ export class Storage {
     private metadata: StorageMetadata
     private enclosuresPath: string
 
-    constructor(private storagePath: string, private log: (msg: string) => void) {
+    constructor(storagePath: string, private log: (msg: string) => void) {
         this.metadataPath = path.join(storagePath, 'metadata.json')
         this.enclosuresPath = path.join(storagePath, 'enclosures')
         mkdirp(storagePath)
@@ -244,7 +249,10 @@ export class Storage {
     
             this.log(`Downloading ${episode.enclosureUrl} to ${enclosurePath}`)
             await downloadFile(episode.enclosureUrl, enclosurePath, onProgress)
-            feed.downloaded[guid] = enclosureFilename
+            feed.downloaded[guid] = {
+                filename: enclosureFilename,
+                date: Date.now()
+            }
             if (episode.duration === undefined) {
                 try {
                     episode.duration = await getAudioDuration(enclosurePath)
@@ -254,14 +262,14 @@ export class Storage {
             }
             this.saveMetadata()
         }
-        const enclosureFilename = feed.downloaded[guid]
+        const enclosureFilename = feed.downloaded[guid].filename
         const enclosurePath = path.join(this.enclosuresPath, enclosureFilename)
         return enclosurePath
     }
 
     async deleteEpisodeEnclosure(feedUrl: string, guid: string, skipMetadataSave=false) {
         const feed = this.metadata.podcasts[feedUrl]
-        const filename = feed.downloaded[guid]
+        const filename = feed.downloaded[guid].filename
         delete feed.downloaded[guid]
         const enclosurePath = path.join(this.enclosuresPath, filename)
         this.log(`Deleting downloaded episode ${enclosurePath}`)
