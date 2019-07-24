@@ -134,14 +134,14 @@ export async function activate(context: ExtensionContext) {
             for (const guid of guids) {
                 const episode = podcast.episodes[guid]
                 const download = podcast.downloaded[guid]
-                const completed = download.completed ? ' | ✓' : ''
-                const playing = download.lastPosition ? ' | ▶ ' + toHumanDuration(download.lastPosition) : ''
+                const completed = download.completed ? '✓ | ' : ''
+                const playing = download.lastPosition ? '▶ ' + toHumanDuration(download.lastPosition) + ' | ' : ''
                 items.push({
                     label: episode.title,
                     description: episode.description,
-                    detail: toHumanDuration(episode.duration, 'Unknown duration') + 
+                    detail: completed + playing + toHumanDuration(episode.duration, 'Unknown duration') + 
                         ' | ' + toHumanTimeAgo(episode.published) + 
-                        ' | ' + podcast.title + completed + playing,
+                        ' | ' + podcast.title,
                     feedUrl: feedUrl,
                     guid: guid,
                     downloadDate: download.date
@@ -196,13 +196,13 @@ export async function activate(context: ExtensionContext) {
                 const episode = podcast.episodes[guid]
                 const download = podcast.downloaded[guid]
                 const downloaded = download ? ' | $(database)' : ''
-                const completed = download && download.completed ? ' | ✓' : ''
-                const playing = download && download.lastPosition ? ' | ▶ ' + toHumanDuration(download.lastPosition) : ''
+                const completed = download && download.completed ?  '✓ | ' : ''
+                const playing = download && download.lastPosition ? '▶ ' + toHumanDuration(download.lastPosition) + ' | ' : ''
                 return {
                     label: episode.title,
                     description: episode.description,
-                    detail: toHumanDuration(episode.duration, 'Unknown duration') + 
-                        ' | ' + toHumanTimeAgo(episode.published) + downloaded + completed + playing,
+                    detail: completed + playing + toHumanDuration(episode.duration, 'Unknown duration') + 
+                        ' | ' + toHumanTimeAgo(episode.published) + downloaded,
                     guid: guid,
                     published: episode.published
                 }
