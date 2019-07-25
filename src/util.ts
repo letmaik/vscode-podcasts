@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import {promisify} from 'util';
 import * as tmp from 'tmp';
 import * as request from 'request';
@@ -54,7 +55,12 @@ export async function downloadFile(url: string, path: string, onProgress?: (rati
     const file = fs.createWriteStream(tmpPath)
     try {
         await new Promise((resolve, reject) => {
-            const req = requestProgress(request({url}))
+            const req = requestProgress(request({
+                url: url,
+                headers: {
+                    'User-Agent': 'Node'
+                }
+            }))
             req.on('error', e => {
                 file.close()
                 reject(e)
@@ -89,6 +95,9 @@ export async function downloadFile(url: string, path: string, onProgress?: (rati
 const durationCache = new Map<string, number>()
 export async function getAudioDuration(audioPath: string): Promise<number> {
     if (!durationCache.has(audioPath)) {
+        if (path.extname(audioPath) !== '.mp3') {
+            throw new Error('Cannot determine audio duration, only MP3 supported')
+        }
         const duration = await mp3Duration(audioPath)
         if (duration == 0) {
             throw new Error('Unable to extract audio duration')

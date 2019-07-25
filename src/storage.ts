@@ -115,7 +115,12 @@ export class Storage {
         this.log(`Requesting ${url}`)
         let data: any
         try {
-            data = await requestp({uri: url})
+            data = await requestp({
+                url: url,
+                headers: {
+                    'User-Agent': 'Node'
+                }
+            })
         } catch (e) {
             this.log(`HTTP error: ${e}`)
             throw e
@@ -132,7 +137,7 @@ export class Storage {
                 title: episode.title,
                 description: episode.description,
                 published: new Date(episode.published).getTime(),
-                duration: episode.duration,
+                duration: episode.duration ? episode.duration : undefined,
                 enclosureUrl: episode.enclosure.url
             }
         }
@@ -288,9 +293,15 @@ export class Storage {
     }
 
     async storeListeningStatus(feedUrl: string, guid: string, completed: boolean, position: number | undefined = undefined) {
+        // TODO move to episode metadata so that info is kept if download is deleted?
         const meta = this.metadata.podcasts[feedUrl].downloaded[guid]
         meta.completed = completed
         meta.lastPosition = position
         await this.saveMetadata()
+    }
+
+    getEpisodeDuration(feedUrl: string, guid: string): number | undefined {
+        const duration = this.metadata.podcasts[feedUrl].episodes[guid].duration
+        return duration
     }
 }

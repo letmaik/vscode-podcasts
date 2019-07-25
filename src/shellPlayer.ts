@@ -202,7 +202,7 @@ export class ShellPlayer {
     return args
   }
 
-  async play(audioPath: string, startPosition: number, onError: (e: Error) => void): Promise<void> {
+  async play(audioPath: string, startPosition: number, duration: number | undefined, onError: (e: Error) => void): Promise<void> {
     let options: SpawnOptions = {
       stdio: 'pipe',
       // Not generally needed, but required for mplayer on Windows to eat
@@ -226,11 +226,18 @@ export class ShellPlayer {
       throw new Error(`${this.playerName} does not support playing from arbitrary positions`)
     }
 
+    if (duration) {
+      this.duration = duration
+    } else {
+      // TODO allow to fail and provide fallbacks
+      this.log(`Determining total duration`)
+      this.duration = await getAudioDuration(audioPath)
+    }
+
     this.startPosition = startPosition
     this.currentPositionFromStatus = undefined
     this.startUnixTimestamp = Date.now()
     this.stopUnixTimestamp = undefined
-    this.duration = await getAudioDuration(audioPath)
 
     const args = this.getPlayerArgs(audioPath, startPosition)
     this.log(`Running ${this.playerPath} ${args.join(' ')}`)

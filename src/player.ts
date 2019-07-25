@@ -63,24 +63,29 @@ export class Player {
         this.currentEpisodeFeedUrl = feedUrl
         this.currentEpisodeGuid = guid
         
-        this.statusBar.update({status: StatusBarStatus.DOWNLOADING})
-        const enclosurePath = await this.storage.fetchEpisodeEnclosure(feedUrl, guid, progress => {
-            this.statusBar.update({
-                status: StatusBarStatus.DOWNLOADING,
-                downloadProgress: progress
-            })
-        })
-
-        let startPosition = this.storage.getLastListeningPosition(feedUrl, guid)
-        if (startPosition > 0 && !this.shellPlayer.supportsStartOffset()) {
-            startPosition = 0
-            window.showWarningMessage(`Playing from beginning, player does not support arbitrary positions`)
-        }
-        
-        this.statusBar.update({status: StatusBarStatus.OPENING})
         try {
+            // TODO allow to cancel download
+            this.statusBar.update({status: StatusBarStatus.DOWNLOADING})
+            const enclosurePath = await this.storage.fetchEpisodeEnclosure(feedUrl, guid, progress => {
+                this.statusBar.update({
+                    status: StatusBarStatus.DOWNLOADING,
+                    downloadProgress: progress
+                })
+            })
+
+            let startPosition = this.storage.getLastListeningPosition(feedUrl, guid)
+            if (startPosition > 0 && !this.shellPlayer.supportsStartOffset()) {
+                startPosition = 0
+                window.showWarningMessage(`Playing from beginning, player does not support arbitrary positions`)
+            }
+
+            const duration = this.storage.getEpisodeDuration(feedUrl, guid)
+            
+            this.statusBar.update({status: StatusBarStatus.OPENING})
+            
             await this.shellPlayer.play(enclosurePath,
                 startPosition,
+                duration,
                 e => {
                     console.error(e)
                     window.showErrorMessage(e.message)
@@ -88,6 +93,7 @@ export class Player {
         } catch (e) {
             console.error(e)
             window.showErrorMessage(e.message)
+            this.statusBar.update({status: StatusBarStatus.STOPPED})
         }
     }
 
