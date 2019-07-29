@@ -8,7 +8,7 @@ import * as findExec from 'find-exec'
 import {spawn, ChildProcess, SpawnOptions} from 'child_process'
 
 import { EventEmitter } from 'vscode';
-import { getAudioDuration } from './util.js';
+import { getAudioDuration } from './util';
 
 const IS_WINDOWS = platform === 'win32'
 

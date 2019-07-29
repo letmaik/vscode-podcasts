@@ -14,7 +14,8 @@
     "Other"
   ],
   "keywords": [
-    "podcast", "feed"
+    "podcast",
+    "feed"
   ],
   "bugs": {
     "url": "https://github.com/letmaik/vscode-podcasts/issues"
@@ -34,7 +35,7 @@
     "onCommand:podcasts.searchEpisodes",
     "onCommand:podcasts.searchPodcasts"
   ],
-  "main": "./out/src/extension",
+  "main": "./dist/extension",
   "contributes": {
     "commands": [
       {
@@ -248,8 +249,10 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "tsc -p ./",
-    "compile": "tsc -watch -p ./",
+    "vscode:prepublish": "webpack --mode production",
+    "compile": "webpack --mode none",
+    "watch": "webpack --mode none --watch --env.development --info-verbosity verbose",
+    "test-compile": "tsc -p ./",
     "postinstall": "node ./node_modules/vscode/bin/install"
   },
   "devDependencies": {
@@ -258,8 +261,11 @@
     "@types/request-promise-native": "1.0.14",
     "@types/tmp": "0.0.33",
     "@types/xml2js": "^0.4.4",
+    "ts-loader": "^6.0.4",
     "typescript": "^2.3.4",
-    "vscode": "^1.1.0"
+    "vscode": "^1.1.0",
+    "webpack": "^4.38.0",
+    "webpack-cli": "^3.3.6"
   },
   "dependencies": {
     "find-exec": "^1.0.1",
