@@ -90,6 +90,7 @@ export async function activate(context: ExtensionContext) {
         }))
     }
 
+    registerPlayerCommand('cancelDownload', p => p.cancelDownload())
     registerPlayerCommand('pause', p => p.pause())
     registerPlayerCommand('stop', p => p.stop())
     registerPlayerCommand('skipBackward', p => p.skipBackward())
@@ -99,6 +100,9 @@ export async function activate(context: ExtensionContext) {
 
     disposables.push(commands.registerCommand(NAMESPACE + '.main', async () => {
         const items: CommandItem[] = [{
+            cmd: 'cancelDownload',
+            label: 'Cancel download'
+        }, {
             cmd: 'pause',
             label: 'Pause/Unpause'
         }, {

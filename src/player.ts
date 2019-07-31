@@ -1,6 +1,6 @@
 import { ShellPlayer, ShellPlayerCommand, ShellPlayerStatus } from "./shellPlayer";
 import { Storage } from "./storage";
-import { window, Disposable } from "vscode";
+import { window, Disposable, CancellationTokenSource } from "vscode";
 import { StatusBar, StatusBarStatus } from "./statusBar";
 
 const StatusMapping = {
@@ -14,6 +14,9 @@ export class Player {
     private currentEpisodeGuid?: string
 
     private shellPlayerQueryIntervalId: NodeJS.Timeout
+
+    private downloadCancellationTokenSource?: CancellationTokenSource
+    private isDownloadInProgress = false
 
     constructor(private shellPlayer: ShellPlayer, private storage: Storage, private statusBar: StatusBar, 
             private log: (msg: string) => void, private disposables: Disposable[]) {
@@ -59,19 +62,39 @@ export class Player {
         }
     }
 
+    cancelDownload() {
+        if (!this.isDownloadInProgress) {
+            window.showInformationMessage('No download in progress')
+            return
+        }
+        this.downloadCancellationTokenSource!.cancel()
+    }
+
     async play(feedUrl: string, guid: string) {
+        if (this.isDownloadInProgress) {
+            window.showWarningMessage('Cannot download multiple episodes in parallel')
+            return
+        } else if (this.downloadCancellationTokenSource) {
+            this.downloadCancellationTokenSource.dispose()
+        }
         this.currentEpisodeFeedUrl = feedUrl
         this.currentEpisodeGuid = guid
+        this.isDownloadInProgress = true
+        this.downloadCancellationTokenSource = new CancellationTokenSource()
+        const token = this.downloadCancellationTokenSource.token
         
         try {
-            // TODO allow to cancel download
             this.statusBar.update({status: StatusBarStatus.DOWNLOADING})
-            const enclosurePath = await this.storage.fetchEpisodeEnclosure(feedUrl, guid, progress => {
-                this.statusBar.update({
-                    status: StatusBarStatus.DOWNLOADING,
-                    downloadProgress: progress
-                })
-            })
+            const enclosurePath = await this.storage.fetchEpisodeEnclosure(feedUrl, guid,
+                progress => {
+                    this.statusBar.update({
+                        status: StatusBarStatus.DOWNLOADING,
+                        downloadProgress: progress
+                    })
+                },
+                token
+            )
+            this.isDownloadInProgress = false
 
             let startPosition = this.storage.getLastListeningPosition(feedUrl, guid)
             if (startPosition > 0 && !this.shellPlayer.supportsStartOffset()) {
@@ -94,6 +117,7 @@ export class Player {
             console.error(e)
             window.showErrorMessage(e.message)
             this.statusBar.update({status: StatusBarStatus.STOPPED})
+            this.isDownloadInProgress = false
         }
     }
 

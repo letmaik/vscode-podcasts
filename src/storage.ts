@@ -8,6 +8,7 @@ import { parseString as parseXML } from 'xml2js';
 import { downloadFile, getAudioDuration } from './util';
 import { mkdirp } from './3rdparty/util';
 import { URL } from 'url';
+import { CancellationToken } from 'vscode';
 
 const exists = promisify(fs.exists)
 const readFile = promisify(fs.readFile)
@@ -241,7 +242,8 @@ export class Storage {
         this.saveMetadata()
     }
 
-    async fetchEpisodeEnclosure(feedUrl: string, guid: string, onProgress?: (ratio: number) => void) {
+    async fetchEpisodeEnclosure(feedUrl: string, guid: string,
+            onProgress?: (ratio: number) => void, token?: CancellationToken) {
         const feed = await this.fetchPodcast(feedUrl)
         const episode = feed.episodes[guid]
         if (!(guid in feed.downloaded)) {
@@ -255,7 +257,7 @@ export class Storage {
             } while (fs.existsSync(enclosurePath))
     
             this.log(`Downloading ${episode.enclosureUrl} to ${enclosurePath}`)
-            await downloadFile(episode.enclosureUrl, enclosurePath, onProgress)
+            await downloadFile(episode.enclosureUrl, enclosurePath, onProgress, token)
             feed.downloaded[guid] = {
                 filename: enclosureFilename,
                 date: Date.now(),

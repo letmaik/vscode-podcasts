@@ -54,6 +54,11 @@
         "category": "Podcasts"
       },
       {
+        "command": "podcasts.cancelDownload",
+        "title": "Cancel Download",
+        "category": "Podcasts"
+      },
+      {
         "command": "podcasts.play",
         "title": "Play",
         "category": "Podcasts"

@@ -1,10 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import {promisify} from 'util';
+import { promisify } from 'util';
 import * as tmp from 'tmp';
 import * as request from 'request';
 import * as requestProgress from 'request-progress';
 import mp3Duration = require('./3rdparty/mp3-duration.js')
+import { CancellationToken } from 'vscode';
 
 const copyFile = promisify(fs.copyFile)
 const unlink = promisify(fs.unlink)
@@ -50,7 +51,8 @@ export function toHumanTimeAgo(timestamp: number) {
     return Math.round(years) + ` year${plural} ago`
 }
 
-export async function downloadFile(url: string, path: string, onProgress?: (ratio: number) => void): Promise<void> {
+export async function downloadFile(url: string, path: string, 
+        onProgress?: (ratio: number) => void, token?: CancellationToken): Promise<void> {
     const tmpPath = await tmpName({})
     const file = fs.createWriteStream(tmpPath)
     try {
@@ -61,6 +63,13 @@ export async function downloadFile(url: string, path: string, onProgress?: (rati
                     'User-Agent': 'Node'
                 }
             }))
+            if (token) {
+                token.onCancellationRequested(e => {
+                    req.abort()
+                    file.close()
+                    reject(new Error('Download cancelled'))
+                })
+            }
             req.on('error', e => {
                 file.close()
                 reject(e)
