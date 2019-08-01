@@ -59,6 +59,11 @@
         "category": "Podcasts"
       },
       {
+        "command": "podcasts.openWebsite",
+        "title": "Open episode website",
+        "category": "Podcasts"
+      },
+      {
         "command": "podcasts.play",
         "title": "Play",
         "category": "Podcasts"
@@ -261,24 +266,27 @@
     "postinstall": "node ./node_modules/vscode/bin/install"
   },
   "devDependencies": {
+    "@types/lodash": "^4.14.136",
     "@types/node": "^10.0.2",
     "@types/request": "2.47.0",
     "@types/request-promise-native": "1.0.14",
+    "@types/sax": "^1.2.0",
     "@types/tmp": "0.0.33",
     "@types/xml2js": "^0.4.4",
     "ts-loader": "^6.0.4",
-    "typescript": "^2.3.4",
+    "typescript": "^3.5.3",
     "vscode": "^1.1.0",
     "webpack": "^4.38.0",
     "webpack-cli": "^3.3.6"
   },
   "dependencies": {
     "find-exec": "^1.0.1",
-    "node-podcast-parser": "^2.3.0",
     "request": "^2.88.0",
     "request-progress": "^3.0.0",
     "request-promise-native": "^1.0.7",
     "tmp": "^0.1.0",
-    "xml2js": "^0.4.19"
+    "xml2js": "^0.4.19",
+    "lodash": "^4.17.10",
+    "sax": "^1.2.0"
   }
 }

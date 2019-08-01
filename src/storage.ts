@@ -3,7 +3,7 @@ import * as fs from 'fs'
 import {promisify} from 'util';
 
 import * as requestp from 'request-promise-native';
-import * as parsePodcast_ from 'node-podcast-parser';
+import parsePodcast from './3rdparty/podcast-parser';
 import { parseString as parseXML } from 'xml2js';
 import { downloadFile, getAudioDuration } from './util';
 import { mkdirp } from './3rdparty/util';
@@ -14,13 +14,13 @@ const exists = promisify(fs.exists)
 const readFile = promisify(fs.readFile)
 const writeFile = promisify(fs.writeFile)
 const unlink = promisify(fs.unlink)
-const parsePodcast = promisify(parsePodcast_)
 
 export interface EpisodeMetadata {
     title: string
-    description: string
+    description?: string
+    homepageUrl?: string
     duration?: number // seconds
-    published: number // timestamp
+    published?: number // timestamp
     enclosureUrl: string
 }
 
@@ -33,7 +33,7 @@ export interface DownloadedEpisodeMetadata {
 
 export interface PodcastMetadata {
     title: string
-    description: string
+    description?: string
     homepageUrl: string
     episodes: { [guid: string]: EpisodeMetadata }
     lastRefreshed: number // timestamp
@@ -99,6 +99,14 @@ export class Storage {
         return this.metadata.podcasts[url]
     }
 
+    getEpisode(feedUrl: string, guid: string) {
+        const episode = this.getPodcast(feedUrl).episodes[guid]
+        if (!episode) {
+            throw new Error(`Episode ${feedUrl} ${guid} not found in storage`)
+        }
+        return episode
+    }
+
     async fetchPodcast(url: string, updateIfOlderThan: number | undefined = undefined) {
         if (this.hasPodcast(url)) {
             if (updateIfOlderThan && this.getPodcast(url).lastRefreshed < updateIfOlderThan) {
@@ -134,10 +142,11 @@ export class Storage {
                 this.log(`Ignoring "${episode.title}" (GUID: ${episode.guid}), no enclosure found`)
                 continue
             }
-            episodes[episode.guid] = {
+            episodes[episode.guid || episode.enclosure.url] = {
                 title: episode.title,
-                description: episode.description,
-                published: new Date(episode.published).getTime(),
+                description: episode.description.primary || episode.description.alternate,
+                homepageUrl: episode.link,
+                published: episode.published ? episode.published.getTime() : undefined,
                 duration: episode.duration ? episode.duration : undefined,
                 enclosureUrl: episode.enclosure.url
             }
@@ -145,7 +154,7 @@ export class Storage {
 
         let feed: PodcastMetadata = {
             title: podcast.title,
-            description: podcast.description.short,
+            description: podcast.description.short || podcast.description.long,
             homepageUrl: podcast.link,
             lastRefreshed: Date.now(),
             episodes: episodes,

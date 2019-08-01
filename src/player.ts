@@ -1,6 +1,6 @@
 import { ShellPlayer, ShellPlayerCommand, ShellPlayerStatus } from "./shellPlayer";
 import { Storage } from "./storage";
-import { window, Disposable, CancellationTokenSource } from "vscode";
+import { window, Disposable, CancellationTokenSource, env, Uri } from "vscode";
 import { StatusBar, StatusBarStatus } from "./statusBar";
 
 const StatusMapping = {
@@ -60,6 +60,19 @@ export class Player {
         } else {
             this.storage.storeListeningStatus(this.currentEpisodeFeedUrl, this.currentEpisodeGuid!, false, this.shellPlayer.position)
         }
+    }
+
+    async openWebsite() {
+        if (!this.currentEpisodeFeedUrl) {
+            window.showInformationMessage('No episode playing')
+            return
+        }
+        const episode = this.storage.getEpisode(this.currentEpisodeFeedUrl, this.currentEpisodeGuid!)
+        if (!episode.homepageUrl) {
+            window.showInformationMessage('No episode homepage')
+            return
+        }
+        env.openExternal(Uri.parse(episode.homepageUrl))
     }
 
     cancelDownload() {

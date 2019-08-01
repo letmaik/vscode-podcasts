@@ -16,7 +16,7 @@ interface CommandItem extends QuickPickItem {
 
 interface EpisodeItem extends QuickPickItem {
     guid: string
-    published: number
+    published?: number
 }
 
 interface PodcastItem extends QuickPickItem {
@@ -90,6 +90,7 @@ export async function activate(context: ExtensionContext) {
         }))
     }
 
+    registerPlayerCommand('openWebsite', p => p.openWebsite())
     registerPlayerCommand('cancelDownload', p => p.cancelDownload())
     registerPlayerCommand('pause', p => p.pause())
     registerPlayerCommand('stop', p => p.stop())
@@ -102,6 +103,9 @@ export async function activate(context: ExtensionContext) {
         const items: CommandItem[] = [{
             cmd: 'cancelDownload',
             label: 'Cancel download'
+        }, {
+            cmd: 'openWebsite',
+            label: 'Open episode website'
         }, {
             cmd: 'pause',
             label: 'Pause/Unpause'
@@ -144,7 +148,7 @@ export async function activate(context: ExtensionContext) {
                     label: episode.title,
                     description: episode.description,
                     detail: completed + playing + toHumanDuration(episode.duration, 'Unknown duration') + 
-                        ' | ' + toHumanTimeAgo(episode.published) + 
+                        (episode.published ? ' | ' + toHumanTimeAgo(episode.published) : '') + 
                         ' | ' + podcast.title,
                     feedUrl: feedUrl,
                     guid: guid,
@@ -206,7 +210,8 @@ export async function activate(context: ExtensionContext) {
                     label: episode.title,
                     description: episode.description,
                     detail: completed + playing + toHumanDuration(episode.duration, 'Unknown duration') + 
-                        ' | ' + toHumanTimeAgo(episode.published) + downloaded,
+                        (episode.published ? ' | ' + toHumanTimeAgo(episode.published) : '') +
+                        downloaded,
                     guid: guid,
                     published: episode.published
                 }
@@ -225,7 +230,9 @@ export async function activate(context: ExtensionContext) {
         }
 
         const items = getEpisodeItems(podcast)
-        items.sort((a,b) => b.published - a.published)
+        if (!items.some((item) => item.published === undefined)) {
+            items.sort((a,b) => b.published! - a.published!)
+        }
 
         const episodePicker = window.createQuickPick<EpisodeItem>()
         episodePicker.ignoreFocusOut = true
