@@ -7,7 +7,7 @@ import { toHumanDuration, toHumanTimeAgo } from './util';
 import { Storage, PodcastMetadata } from './storage';
 import { Player } from './player';
 import { StatusBar } from './statusBar';
-import { Configuration, Feed } from './types';
+import { Configuration, Feed, PlayerStatus } from './types';
 import { ListenNotesPodcastSearchQuickPick, ListenNotesEpisodeSearchQuickPick } from './quickpicks/listenNotesSearch';
 
 interface CommandItem extends QuickPickItem {
@@ -65,8 +65,17 @@ export async function activate(context: ExtensionContext) {
     await storage.loadMetadata()
 
     const statusBar = new StatusBar(disposables)
-    const player = new Player(shellPlayer, storage, statusBar, log, disposables)
+    const player = new Player(shellPlayer, storage, log, disposables)
     const listenNotes = new ListenNotes(log)
+
+    let lastStatus = PlayerStatus.STOPPED
+    player.onStateChange(state => {
+        statusBar.update(state)
+        if (state.status !== lastStatus) {
+            commands.executeCommand('setContext', `${NAMESPACE}.playerStatus`, `${PlayerStatus[state.status]}`)
+            lastStatus = state.status
+        }
+    })
 
     // TODO allow to add podcasts from search to the config
 
@@ -100,31 +109,45 @@ export async function activate(context: ExtensionContext) {
     registerPlayerCommand('speedup', p => p.speedup())
 
     disposables.push(commands.registerCommand(NAMESPACE + '.main', async () => {
-        const items: CommandItem[] = [{
-            cmd: 'cancelDownload',
-            label: 'Cancel download'
-        }, {
-            cmd: 'openWebsite',
-            label: 'Open episode website'
-        }, {
-            cmd: 'pause',
-            label: 'Pause/Unpause'
-        }, {
-            cmd: 'stop',
-            label: 'Stop'
-        }, {
-            cmd: 'skipBackward',
-            label: 'Skip backward'
-        }, {
-            cmd: 'skipForward',
-            label: 'Skip forward'
-        }, {
-            cmd: 'slowdown',
-            label: 'Slow down'
-        }, {
-            cmd: 'speedup',
-            label: 'Speed up'
-        }]
+        const items: CommandItem[] = []
+        const status = player.status
+        // NOTE: When changing conditions, also change in package.json.
+        if (status === PlayerStatus.DOWNLOADING) {
+            items.push({
+                cmd: 'cancelDownload',
+                label: 'Cancel download'
+            })
+        }
+        if (status !== PlayerStatus.STOPPED) {
+            items.push({
+                cmd: 'openWebsite',
+                label: 'Open episode website'
+            })
+        }
+        if (status === PlayerStatus.PLAYING || status === PlayerStatus.PAUSED) {
+            items.push(...[{
+                cmd: 'pause',
+                label: status === PlayerStatus.PLAYING ? 'Pause' : 'Unpause'
+            }, {
+                cmd: 'stop',
+                label: 'Stop'
+            }])
+        }
+        if (status === PlayerStatus.PLAYING) {
+            items.push(...[{
+                cmd: 'skipBackward',
+                label: 'Skip backward'
+            }, {
+                cmd: 'skipForward',
+                label: 'Skip forward'
+            }, {
+                cmd: 'slowdown',
+                label: 'Slow down'
+            }, {
+                cmd: 'speedup',
+                label: 'Speed up'
+            }])
+        }
         const pick = await window.showQuickPick(items, {
             placeHolder: 'Choose an action'
         })

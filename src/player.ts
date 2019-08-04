@@ -1,42 +1,61 @@
 import { ShellPlayer, ShellPlayerCommand, ShellPlayerStatus } from "./shellPlayer";
 import { Storage } from "./storage";
-import { window, Disposable, CancellationTokenSource, env, Uri } from "vscode";
-import { StatusBar, StatusBarStatus } from "./statusBar";
+import { window, Disposable, CancellationTokenSource, env, Uri, EventEmitter } from "vscode";
+import { PlayerStatus, PlayerState } from "./types";
 
 const StatusMapping = {
-    [ShellPlayerStatus.PLAYING]: StatusBarStatus.PLAYING,
-    [ShellPlayerStatus.PAUSED]: StatusBarStatus.PAUSED,
-    [ShellPlayerStatus.STOPPED]: StatusBarStatus.STOPPED
+    [ShellPlayerStatus.PLAYING]: PlayerStatus.PLAYING,
+    [ShellPlayerStatus.PAUSED]: PlayerStatus.PAUSED,
+    [ShellPlayerStatus.STOPPED]: PlayerStatus.STOPPED
 }
 
 export class Player {
+    private _onStateChange = new EventEmitter<PlayerState>()
+    onStateChange = this._onStateChange.event
+
     private currentEpisodeFeedUrl?: string
     private currentEpisodeGuid?: string
 
     private shellPlayerQueryIntervalId: NodeJS.Timeout
 
     private downloadCancellationTokenSource?: CancellationTokenSource
-    private isDownloadInProgress = false
 
-    constructor(private shellPlayer: ShellPlayer, private storage: Storage, private statusBar: StatusBar, 
+    private _state: PlayerState = {
+        status: PlayerStatus.STOPPED
+    }
+
+    private get state() {
+        return this._state
+    }
+
+    private set state(v: PlayerState) {
+        this._state = v
+        this._onStateChange.fire(v)
+    }
+
+    get status(): PlayerStatus {
+        return this.state.status
+    }
+
+    constructor(private shellPlayer: ShellPlayer, private storage: Storage,  
             private log: (msg: string) => void, private disposables: Disposable[]) {
         
         disposables.push(this.shellPlayer.onStatusChange(shellPlayerStatus => {
-            const statusBarStatus = StatusMapping[shellPlayerStatus]
-            this.statusBar.update({status: statusBarStatus})
-            if (shellPlayerStatus == ShellPlayerStatus.PLAYING) {
-                const sendUpdate = () => {
-                    this.statusBar.update({
-                        status: StatusBarStatus.PLAYING,
+            const status = StatusMapping[shellPlayerStatus]
+            this.state = { status }
+            if (status == PlayerStatus.PLAYING) {
+                const updateState = () => {
+                    this.state = {
+                        status: PlayerStatus.PLAYING,
                         duration: this.shellPlayer.duration,
                         elapsed: this.shellPlayer.position
-                    })
+                    }
                 }
-                sendUpdate()
-                this.shellPlayerQueryIntervalId = setInterval(sendUpdate, 1000)
+                updateState()
+                this.shellPlayerQueryIntervalId = setInterval(updateState, 1000)
             } else {
                 clearInterval(this.shellPlayerQueryIntervalId)
-                if (shellPlayerStatus == ShellPlayerStatus.STOPPED) {
+                if (status == PlayerStatus.STOPPED) {
                     this.storeListeningStatus()
                 }
             }
@@ -76,7 +95,7 @@ export class Player {
     }
 
     cancelDownload() {
-        if (!this.isDownloadInProgress) {
+        if (this.state.status !== PlayerStatus.DOWNLOADING) {
             window.showInformationMessage('No download in progress')
             return
         }
@@ -84,7 +103,7 @@ export class Player {
     }
 
     async play(feedUrl: string, guid: string) {
-        if (this.isDownloadInProgress) {
+        if (this.state.status === PlayerStatus.DOWNLOADING) {
             window.showWarningMessage('Cannot download multiple episodes in parallel')
             return
         } else if (this.downloadCancellationTokenSource) {
@@ -92,22 +111,22 @@ export class Player {
         }
         this.currentEpisodeFeedUrl = feedUrl
         this.currentEpisodeGuid = guid
-        this.isDownloadInProgress = true
         this.downloadCancellationTokenSource = new CancellationTokenSource()
         const token = this.downloadCancellationTokenSource.token
         
         try {
-            this.statusBar.update({status: StatusBarStatus.DOWNLOADING})
+            this.state = { status: PlayerStatus.DOWNLOADING }
             const enclosurePath = await this.storage.fetchEpisodeEnclosure(feedUrl, guid,
                 progress => {
-                    this.statusBar.update({
-                        status: StatusBarStatus.DOWNLOADING,
+                    this.state = {
+                        status: PlayerStatus.DOWNLOADING,
                         downloadProgress: progress
-                    })
+                    }
                 },
                 token
             )
-            this.isDownloadInProgress = false
+
+            this.state = { status: PlayerStatus.OPENING }
 
             let startPosition = this.storage.getLastListeningPosition(feedUrl, guid)
             if (startPosition > 0 && !this.shellPlayer.supportsStartOffset()) {
@@ -116,8 +135,6 @@ export class Player {
             }
 
             const duration = this.storage.getEpisodeDuration(feedUrl, guid)
-            
-            this.statusBar.update({status: StatusBarStatus.OPENING})
             
             await this.shellPlayer.play(enclosurePath,
                 startPosition,
@@ -129,8 +146,7 @@ export class Player {
         } catch (e) {
             console.error(e)
             window.showErrorMessage(e.message)
-            this.statusBar.update({status: StatusBarStatus.STOPPED})
-            this.isDownloadInProgress = false
+            this.state = { status: PlayerStatus.STOPPED }
         }
     }
 

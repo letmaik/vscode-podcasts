@@ -16,3 +16,18 @@ export interface Configuration {
     player?: string
     search: SearchConfiguration
 }
+
+export enum PlayerStatus {
+    DOWNLOADING,
+    OPENING,
+    PLAYING,
+    PAUSED,
+    STOPPED
+}
+
+export interface PlayerState {
+    status: PlayerStatus,
+    downloadProgress?: number,
+    duration?: number,
+    elapsed?: number
+}

@@ -56,12 +56,14 @@
       {
         "command": "podcasts.cancelDownload",
         "title": "Cancel Download",
-        "category": "Podcasts"
+        "category": "Podcasts",
+        "enablement": "podcasts.playerStatus == DOWNLOADING"
       },
       {
         "command": "podcasts.openWebsite",
         "title": "Open episode website",
-        "category": "Podcasts"
+        "category": "Podcasts",
+        "enablement": "podcasts.playerStatus != STOPPED"
       },
       {
         "command": "podcasts.play",
@@ -70,23 +72,39 @@
       },
       {
         "command": "podcasts.pause",
-        "title": "Pause",
-        "category": "Podcasts"
+        "title": "Pause/Unpause",
+        "category": "Podcasts",
+        "enablement": "podcasts.playerStatus == PLAYING || podcasts.playerStatus == PAUSED"
       },
       {
         "command": "podcasts.speedup",
         "title": "Speedup",
-        "category": "Podcasts"
+        "category": "Podcasts",
+        "enablement": "podcasts.playerStatus == PLAYING"
       },
       {
         "command": "podcasts.slowdown",
         "title": "Slowdown",
-        "category": "Podcasts"
+        "category": "Podcasts",
+        "enablement": "podcasts.playerStatus == PLAYING"
+      },
+      {
+        "command": "podcasts.skipBackward",
+        "title": "Skip backward",
+        "category": "Podcasts",
+        "enablement": "podcasts.playerStatus == PLAYING"
+      },
+      {
+        "command": "podcasts.skipForward",
+        "title": "Skip forward",
+        "category": "Podcasts",
+        "enablement": "podcasts.playerStatus == PLAYING"
       },
       {
         "command": "podcasts.stop",
         "title": "Stop",
-        "category": "Podcasts"
+        "category": "Podcasts",
+        "enablement": "podcasts.playerStatus == PLAYING || podcasts.playerStatus == PAUSED"
       }
     ],
     "configuration": {

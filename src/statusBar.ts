@@ -1,29 +1,15 @@
 import { StatusBarItem, window, StatusBarAlignment, Disposable } from "vscode";
 import { NAMESPACE } from "./constants";
 import { toHumanDuration } from "./util";
-
-export enum StatusBarStatus {
-    DOWNLOADING,
-    OPENING,
-    PLAYING,
-    PAUSED,
-    STOPPED
-}
-
-export interface StatusBarState {
-    status: StatusBarStatus,
-    downloadProgress?: number,
-    duration?: number,
-    elapsed?: number
-}
+import { PlayerStatus, PlayerState } from "./types";
 
 export class StatusBar {
     private readonly textPrefix = '$(radio-tower) '
     private readonly cmd = NAMESPACE + '.main'
 
     private statusBarItem: StatusBarItem
-    private state: StatusBarState = {
-        status: StatusBarStatus.STOPPED
+    private state: PlayerState = {
+        status: PlayerStatus.STOPPED
     }
 
     constructor(private disposables: Disposable[]) {
@@ -37,20 +23,20 @@ export class StatusBar {
         this.statusBarItem.text = this.textPrefix + v
     }
 
-    update(state: StatusBarState) {
-        if (this.state.status === StatusBarStatus.STOPPED && state.status !== StatusBarStatus.STOPPED) {
+    update(state: PlayerState) {
+        if (this.state.status === PlayerStatus.STOPPED && state.status !== PlayerStatus.STOPPED) {
             this.statusBarItem.show()
-        } else if (this.state.status !== StatusBarStatus.STOPPED && state.status === StatusBarStatus.STOPPED) {
+        } else if (this.state.status !== PlayerStatus.STOPPED && state.status === PlayerStatus.STOPPED) {
             this.statusBarItem.hide()
         }
 
-        if (state.status === StatusBarStatus.DOWNLOADING) {
+        if (state.status === PlayerStatus.DOWNLOADING) {
             let text = 'Downloading...'
             if (state.downloadProgress) {
                 text += `${Math.round(state.downloadProgress*100)}%`
             }
             this.text = text
-        } else if (state.status === StatusBarStatus.OPENING) {
+        } else if (state.status === PlayerStatus.OPENING) {
             this.text = 'Opening...'
         } else if (state.duration && state.elapsed) {
             const remaining = state.duration - state.elapsed
