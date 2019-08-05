@@ -150,19 +150,19 @@ export async function activate(context: ExtensionContext) {
                 items.push(...[{
                     cmd: 'skipBackward',
                     label: 'Skip backward',
-                    description: `${skipBwdSecs} s`
+                    description: `${skipBwdSecs}s`
                 }, {
                     cmd: 'skipForward',
                     label: 'Skip forward',
-                    description: `+${skipFwdSecs} s`
+                    description: `+${skipFwdSecs}s`
                 }, {
                     cmd: 'slowdown',
                     label: 'Slow down',
-                    description: `${Math.round(slowdownRatio*100)} %`
+                    description: `${Math.round(slowdownRatio*100)}%`
                 }, {
                     cmd: 'speedup',
                     label: 'Speed up',
-                    description: `+${Math.round(speedupRatio*100)} %`
+                    description: `+${Math.round(speedupRatio*100)}%`
                 }])
             }
         }
