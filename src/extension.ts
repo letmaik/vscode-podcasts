@@ -1,4 +1,4 @@
-import { ExtensionContext, workspace, window, Disposable, commands, Uri, QuickPickItem, QuickInputButton } from 'vscode'
+import { ExtensionContext, workspace, window, Disposable, commands, Uri, QuickPickItem, QuickInputButton, env } from 'vscode'
 
 import { NAMESPACE } from './constants'
 import { ShellPlayer, ShellPlayerCommand } from './shellPlayer';
@@ -267,7 +267,15 @@ export async function activate(context: ExtensionContext) {
                 dark: Uri.file(context.asAbsolutePath('resources/icons/dark/refresh.svg')),
                 light: Uri.file(context.asAbsolutePath('resources/icons/light/refresh.svg'))
             },
-            tooltip: 'Refresh'
+            tooltip: 'Refresh Feed'
+        }
+
+        const websiteButton: QuickInputButton = {
+            iconPath: {
+                dark: Uri.file(context.asAbsolutePath('resources/icons/dark/globe.svg')),
+                light: Uri.file(context.asAbsolutePath('resources/icons/light/globe.svg'))
+            },
+            tooltip: 'Open Podcast Website'
         }
 
         const items = getEpisodeItems(podcast)
@@ -280,7 +288,7 @@ export async function activate(context: ExtensionContext) {
         episodePicker.title = podcast.title
         episodePicker.placeholder = 'Pick an episode'
         episodePicker.items = items
-        episodePicker.buttons = [refreshButton]
+        episodePicker.buttons = [websiteButton, refreshButton]
         episodePicker.onDidTriggerButton(async btn => {
             if (btn == refreshButton) {
                 episodePicker.busy = true
@@ -294,6 +302,8 @@ export async function activate(context: ExtensionContext) {
                 }
                 podcast = storage.getPodcast(feedUrl!)
                 episodePicker.items = getEpisodeItems(podcast)
+            } else if (btn == websiteButton) {
+                env.openExternal(Uri.parse(podcast.homepageUrl))
             }
         })
         const episodePickerPromise = new Promise<EpisodeItem | undefined>((resolve, _) => {
