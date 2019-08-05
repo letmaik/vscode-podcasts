@@ -1,7 +1,7 @@
 import { ExtensionContext, workspace, window, Disposable, commands, Uri, QuickPickItem, QuickInputButton } from 'vscode'
 
 import { NAMESPACE } from './constants'
-import { ShellPlayer } from './shellPlayer';
+import { ShellPlayer, ShellPlayerCommand } from './shellPlayer';
 import { ListenNotes } from './listenNotes'
 import { toHumanDuration, toHumanTimeAgo } from './util';
 import { Storage, PodcastMetadata } from './storage';
@@ -69,13 +69,13 @@ export async function activate(context: ExtensionContext) {
     const listenNotes = new ListenNotes(log)
 
     let lastStatus = PlayerStatus.STOPPED
-    player.onStateChange(state => {
+    disposables.push(player.onStateChange(state => {
         statusBar.update(state)
         if (state.status !== lastStatus) {
             commands.executeCommand('setContext', `${NAMESPACE}.playerStatus`, `${PlayerStatus[state.status]}`)
             lastStatus = state.status
         }
-    })
+    }))
 
     // TODO allow to add podcasts from search to the config
 
@@ -111,6 +111,7 @@ export async function activate(context: ExtensionContext) {
     disposables.push(commands.registerCommand(NAMESPACE + '.main', async () => {
         const items: CommandItem[] = []
         const status = player.status
+        const supportsCmds = shellPlayer.supportsCommands()
         // NOTE: When changing conditions, also change in package.json.
         if (status === PlayerStatus.DOWNLOADING) {
             items.push({
@@ -119,34 +120,51 @@ export async function activate(context: ExtensionContext) {
             })
         }
         if (status !== PlayerStatus.STOPPED) {
-            items.push({
-                cmd: 'openWebsite',
-                label: 'Open episode website'
-            })
+            const website = player.getWebsite()
+            if (website) {
+                items.push({
+                    cmd: 'openWebsite',
+                    label: 'Open episode website',
+                    description: website
+                })
+            }
         }
         if (status === PlayerStatus.PLAYING || status === PlayerStatus.PAUSED) {
-            items.push(...[{
-                cmd: 'pause',
-                label: status === PlayerStatus.PLAYING ? 'Pause' : 'Unpause'
-            }, {
+            if (supportsCmds) {
+                items.push({
+                    cmd: 'pause',
+                    label: status === PlayerStatus.PLAYING ? 'Pause' : 'Unpause'
+                })
+            }
+            items.push({
                 cmd: 'stop',
                 label: 'Stop'
-            }])
+            })
         }
         if (status === PlayerStatus.PLAYING) {
-            items.push(...[{
-                cmd: 'skipBackward',
-                label: 'Skip backward'
-            }, {
-                cmd: 'skipForward',
-                label: 'Skip forward'
-            }, {
-                cmd: 'slowdown',
-                label: 'Slow down'
-            }, {
-                cmd: 'speedup',
-                label: 'Speed up'
-            }])
+            if (supportsCmds) {
+                const skipBwdSecs = shellPlayer.getCommandInfo(ShellPlayerCommand.SKIP_BACKWARD)
+                const skipFwdSecs = shellPlayer.getCommandInfo(ShellPlayerCommand.SKIP_FORWARD)
+                const slowdownRatio = shellPlayer.getCommandInfo(ShellPlayerCommand.SLOWDOWN)
+                const speedupRatio = shellPlayer.getCommandInfo(ShellPlayerCommand.SPEEDUP)
+                items.push(...[{
+                    cmd: 'skipBackward',
+                    label: 'Skip backward',
+                    description: `${skipBwdSecs} s`
+                }, {
+                    cmd: 'skipForward',
+                    label: 'Skip forward',
+                    description: `+${skipFwdSecs} s`
+                }, {
+                    cmd: 'slowdown',
+                    label: 'Slow down',
+                    description: `${Math.round(slowdownRatio*100)} %`
+                }, {
+                    cmd: 'speedup',
+                    label: 'Speed up',
+                    description: `+${Math.round(speedupRatio*100)} %`
+                }])
+            }
         }
         const pick = await window.showQuickPick(items, {
             placeHolder: 'Choose an action'

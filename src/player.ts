@@ -81,17 +81,28 @@ export class Player {
         }
     }
 
-    async openWebsite() {
+    getWebsite() {
         if (!this.currentEpisodeFeedUrl) {
-            window.showInformationMessage('No episode playing')
             return
         }
         const episode = this.storage.getEpisode(this.currentEpisodeFeedUrl, this.currentEpisodeGuid!)
         if (!episode.homepageUrl) {
+            return
+        }
+        return episode.homepageUrl
+    }
+
+    openWebsite() {
+        if (!this.currentEpisodeFeedUrl) {
+            window.showInformationMessage('No episode playing')
+            return
+        }
+        const url = this.getWebsite()
+        if (!url) {
             window.showInformationMessage('No episode homepage')
             return
         }
-        env.openExternal(Uri.parse(episode.homepageUrl))
+        env.openExternal(Uri.parse(url))
     }
 
     cancelDownload() {

@@ -87,6 +87,20 @@ const PLAYER_COMMANDS: {[player: string]: CommandMap} = {
   'powershell': POWERSHELL_COMMANDS
 }
 
+type CommandInfoMap = {[cmd in ShellPlayerCommand]?: number}
+
+const MPLAYER_COMMAND_INFO: CommandInfoMap = {
+  [ShellPlayerCommand.SPEEDUP]: 0.1,
+  [ShellPlayerCommand.SLOWDOWN]: -0.1,
+  [ShellPlayerCommand.SKIP_FORWARD]: 30,
+  [ShellPlayerCommand.SKIP_BACKWARD]: -15,
+}
+
+const PLAYER_COMMAND_INFO: {[player: string]: CommandInfoMap} = {
+  'mplayer': MPLAYER_COMMAND_INFO,
+  'powershell': MPLAYER_COMMAND_INFO
+}
+
 // A:  52.5 (52.4) of 1863.0 (31:03.0)  0.0%
 const MPLAYER_STATUS_REGEX = /A:\s+(?<elapsed>[\d\.]+)\s+/
 
@@ -328,6 +342,18 @@ export class ShellPlayer {
         : ShellPlayerStatus.PLAYING)
     }
     this.process.stdin.write(cmds[cmd])
+  }
+
+  getCommandInfo(cmd: ShellPlayerCommand): number {
+    const infos = PLAYER_COMMAND_INFO[this.playerName]
+    if (!infos) {
+      throw new Error(`No command infos found for ${this.playerName}`)
+    }
+    const info = infos[cmd]
+    if (info === undefined) {
+      throw new Error(`No command info found for ${ShellPlayerCommand[cmd]} (${this.playerName})`)
+    }
+    return info
   }
 
   stop() {
