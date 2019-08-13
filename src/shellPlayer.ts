@@ -139,7 +139,6 @@ export class ShellPlayer {
   private supportDir: string
 
   private process: ChildProcess | undefined
-  private statusCommandIntervalId: NodeJS.Timeout
 
   public duration: number
   private startPosition: number // s
@@ -260,10 +259,12 @@ export class ShellPlayer {
       this.setStatus(ShellPlayerStatus.PLAYING)
     }
 
-    this.process = spawn(this.playerPath, args, options)
-    if (!this.process) {
+  
+    const process = spawn(this.playerPath, args, options)
+    if (!process) {
       throw new Error("Unable to spawn process with " + this.playerPath)
     }
+    this.process = process
 
     const logOutputLines = (data: string) => {
       const lines = data.split(EOL)
@@ -275,30 +276,34 @@ export class ShellPlayer {
       }
     }
 
-    this.process.stdout.setEncoding('utf8')
-    this.process.stdout.on('data', (data: string) => {
+    process.stdout.setEncoding('utf8')
+    process.stdout.on('data', (data: string) => {
       if (!this.extractStatus(data)) {
         logOutputLines(data)
       }
     })
 
-    this.process.stderr.setEncoding('utf8')
-    this.process.stderr.on('data', logOutputLines);
+    process.stderr.setEncoding('utf8')
+    process.stderr.on('data', logOutputLines)
 
-    this.process.on('close', (code, signal) => {
+    let statusCommandIntervalId: NodeJS.Timeout | undefined
+
+    process.on('close', (code, signal) => {
       if (!this.stopUnixTimestamp) {
         this.stopUnixTimestamp = Date.now()
       }
-      clearInterval(this.statusCommandIntervalId)
+      if (statusCommandIntervalId) {
+        clearInterval(statusCommandIntervalId)
+      }
       this.setStatus(ShellPlayerStatus.STOPPED)
-      if (!this.process!.killed && code != 0) {
+      if (!process!.killed && code != 0) {
         onError(new Error(`${this.playerName} terminated unexpectedly with exit code ${code}`))
       }
     })
 
     if (this.supportsStatusCommand()) {
       this.sendCommand(ShellPlayerCommand.STATUS)
-      this.statusCommandIntervalId = setInterval(() => {
+      statusCommandIntervalId = setInterval(() => {
         this.sendCommand(ShellPlayerCommand.STATUS)
       }, 1000)
     }

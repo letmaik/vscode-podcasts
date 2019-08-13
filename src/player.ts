@@ -92,7 +92,7 @@ export class Player {
         return episode.homepageUrl
     }
 
-    openWebsite() {
+    async openWebsite() {
         if (!this.currentEpisodeFeedUrl) {
             window.showInformationMessage('No episode playing')
             return
@@ -102,7 +102,7 @@ export class Player {
             window.showInformationMessage('No episode homepage')
             return
         }
-        env.openExternal(Uri.parse(url))
+        await env.openExternal(Uri.parse(url))
     }
 
     cancelDownload() {
@@ -113,7 +113,7 @@ export class Player {
         this.downloadCancellationTokenSource!.cancel()
     }
 
-    async play(feedUrl: string, guid: string) {
+    async play(feedUrl: string, guid: string, startPosition: number | undefined=undefined) {
         if (this.state.status === PlayerStatus.DOWNLOADING) {
             window.showWarningMessage('Cannot download multiple episodes in parallel')
             return
@@ -139,10 +139,12 @@ export class Player {
 
             this.state = { status: PlayerStatus.OPENING }
 
-            let startPosition = this.storage.getLastListeningPosition(feedUrl, guid)
-            if (startPosition > 0 && !this.shellPlayer.supportsStartOffset()) {
-                startPosition = 0
-                window.showWarningMessage(`Playing from beginning, player does not support arbitrary positions`)
+            if (startPosition === undefined) {
+                startPosition = this.storage.getLastListeningPosition(feedUrl, guid)
+                if (startPosition > 0 && !this.shellPlayer.supportsStartOffset()) {
+                    startPosition = 0
+                    window.showWarningMessage(`Playing from beginning, player does not support arbitrary positions`)
+                }
             }
 
             const duration = this.storage.getEpisodeDuration(feedUrl, guid)
@@ -163,6 +165,16 @@ export class Player {
 
     stop() {
         this.shellPlayer.stop()
+    }
+
+    async restart() {
+        if (!this.currentEpisodeFeedUrl) {
+            window.showWarningMessage('No episode is playing')
+            return
+        }
+        this.stop()
+        const startPosition = 0
+        await this.play(this.currentEpisodeFeedUrl, this.currentEpisodeGuid!, startPosition)
     }
 
     pause() {

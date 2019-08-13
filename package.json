@@ -105,6 +105,12 @@
         "title": "Stop",
         "category": "Podcasts",
         "enablement": "podcasts.playerStatus == PLAYING || podcasts.playerStatus == PAUSED"
+      },
+      {
+        "command": "podcasts.restart",
+        "title": "Restart",
+        "category": "Podcasts",
+        "enablement": "podcasts.playerStatus == PLAYING || podcasts.playerStatus == PAUSED"
       }
     ],
     "configuration": {

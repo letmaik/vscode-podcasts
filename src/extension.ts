@@ -86,12 +86,10 @@ export async function activate(context: ExtensionContext) {
         }
     }))
 
-    // TODO add command to restart from beginning
-
-    const registerPlayerCommand = (cmd: string, fn: (player: Player) => void) => {
+    const registerPlayerCommand = (cmd: string, fn: (player: Player) => Promise<void>) => {
         disposables.push(commands.registerCommand(NAMESPACE + '.' + cmd, async () => {
             try {
-                fn(player)
+                await fn(player)
             } catch (e) {
                 console.error(e)
                 window.showErrorMessage(e.message)
@@ -99,14 +97,15 @@ export async function activate(context: ExtensionContext) {
         }))
     }
 
-    registerPlayerCommand('openWebsite', p => p.openWebsite())
-    registerPlayerCommand('cancelDownload', p => p.cancelDownload())
-    registerPlayerCommand('pause', p => p.pause())
-    registerPlayerCommand('stop', p => p.stop())
-    registerPlayerCommand('skipBackward', p => p.skipBackward())
-    registerPlayerCommand('skipForward', p => p.skipForward())
-    registerPlayerCommand('slowdown', p => p.slowdown())
-    registerPlayerCommand('speedup', p => p.speedup())
+    registerPlayerCommand('openWebsite', async p => await p.openWebsite())
+    registerPlayerCommand('cancelDownload', async p => p.cancelDownload())
+    registerPlayerCommand('pause', async p => p.pause())
+    registerPlayerCommand('stop', async p => p.stop())
+    registerPlayerCommand('restart', async p => await p.restart())
+    registerPlayerCommand('skipBackward', async p => p.skipBackward())
+    registerPlayerCommand('skipForward', async p => p.skipForward())
+    registerPlayerCommand('slowdown', async p => p.slowdown())
+    registerPlayerCommand('speedup', async p => p.speedup())
 
     disposables.push(commands.registerCommand(NAMESPACE + '.main', async () => {
         const items: CommandItem[] = []
@@ -139,6 +138,10 @@ export async function activate(context: ExtensionContext) {
             items.push({
                 cmd: 'stop',
                 label: 'Stop'
+            })
+            items.push({
+                cmd: 'restart',
+                label: 'Restart'
             })
         }
         if (status === PlayerStatus.PLAYING) {
