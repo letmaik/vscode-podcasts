@@ -2,4 +2,6 @@ The refresh.svg files in dark/ and light/ is an unmodified copy from the
 extensions/git/resources/icons/{dark,light} folders within the Microsoft/vscode
 GitHub repository, see https://github.com/Microsoft/vscode/tree/master/extensions/git/resources/icons.
 
-The globe.svg files in dark/ and light/ are from https://octicons.github.com/.
+The globe.svg and star.svg files in dark/ and light/ are from https://octicons.github.com/.
+
+The star-empty.svg files in dark/ and light/ are from https://www.onlinewebfonts.com/icon/464047.

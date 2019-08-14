@@ -7,7 +7,7 @@ import { toHumanDuration, toHumanTimeAgo } from './util';
 import { Storage, PodcastMetadata } from './storage';
 import { Player } from './player';
 import { StatusBar } from './statusBar';
-import { Configuration, Feed, PlayerStatus } from './types';
+import { Configuration, StarredFeed, PlayerStatus } from './types';
 import { ListenNotesPodcastSearchQuickPick, ListenNotesEpisodeSearchQuickPick } from './quickpicks/listenNotesSearch';
 
 interface CommandItem extends QuickPickItem {
@@ -33,7 +33,7 @@ function getConfig(): Configuration {
     const rootCfg = workspace.getConfiguration('podcasts')
     const searchCfg = workspace.getConfiguration('podcasts.search')
     return {
-        feeds: rootCfg.get<Feed[]>('feeds')!,
+        starred: rootCfg.get<StarredFeed[]>('starred')!,
         player: rootCfg.get<string>('player'),
         search: {
             genres: searchCfg.get<string[]>('genres')!,
@@ -42,6 +42,13 @@ function getConfig(): Configuration {
             minimumLength: searchCfg.get<number>('minimumLength')!,
             maximumLength: searchCfg.get<number>('maximumLength')!,
         }
+    }
+}
+
+function updateConfig({starred}: {starred?: StarredFeed[]}) {
+    const rootCfg = workspace.getConfiguration('podcasts')
+    if (starred) {
+        rootCfg.update('starred', starred, true)
     }
 }
 
@@ -77,9 +84,8 @@ export async function activate(context: ExtensionContext) {
         }
     }))
 
-    // TODO allow to add podcasts from search to the config
-
     disposables.push(workspace.onDidChangeConfiguration(e => {
+        log('Config changed, reloading')
         cfg = getConfig()
         if (e.affectsConfiguration(NAMESPACE + '.player')) {
             shellPlayer.setPlayerPath(cfg.player)
@@ -215,34 +221,35 @@ export async function activate(context: ExtensionContext) {
         await player.play(pick.feedUrl, pick.guid)
     }))
 
-    disposables.push(commands.registerCommand(NAMESPACE + '.play', async (feedUrl?: string) => {
-        if (!feedUrl) {
-            const feedItems: PodcastItem[] = cfg.feeds.map(feed => {
-                let detail = ''
-                if (storage.hasPodcast(feed.url)) {
-                    const downloaded = Object.keys(storage.getPodcast(feed.url).downloaded).length
-                    if (downloaded > 0) {
-                        detail = `$(database) ${downloaded}`
-                    }
+    disposables.push(commands.registerCommand(NAMESPACE + '.showStarredPodcasts', async () => {
+        const feedItems: PodcastItem[] = cfg.starred.map(feed => {
+            let detail = ''
+            if (storage.hasPodcast(feed.url)) {
+                const downloaded = Object.keys(storage.getPodcast(feed.url).downloaded).length
+                if (downloaded > 0) {
+                    detail = `$(database) ${downloaded}`
                 }
-                return {
-                    label: feed.title,
-                    detail: detail,
-                    url: feed.url
-                }
-            })
-
-            const feedPick = await window.showQuickPick(feedItems, {
-                ignoreFocusOut: true,
-                matchOnDescription: true,
-                placeHolder: 'Pick a podcast'
-            })
-            if (!feedPick) {
-                return
             }
-            feedUrl = feedPick.url
-        }
+            return {
+                label: feed.title,
+                detail: detail,
+                url: feed.url
+            }
+        })
 
+        const feedPick = await window.showQuickPick(feedItems, {
+            ignoreFocusOut: true,
+            matchOnDescription: true,
+            placeHolder: 'Pick a podcast'
+        })
+        if (!feedPick) {
+            return
+        }
+        const feedUrl = feedPick.url
+        commands.executeCommand(NAMESPACE + '.play', feedUrl)
+    }))
+
+    disposables.push(commands.registerCommand(NAMESPACE + '.play', async (feedUrl: string) => {
         const getEpisodeItems = (podcast: PodcastMetadata) => {
             const items: EpisodeItem[] = Object.keys(podcast.episodes).map(guid => {
                 const episode = podcast.episodes[guid]
@@ -281,6 +288,22 @@ export async function activate(context: ExtensionContext) {
             tooltip: 'Open Podcast Website'
         }
 
+        const starButton: QuickInputButton = {
+            iconPath: {
+                dark: Uri.file(context.asAbsolutePath('resources/icons/dark/star-empty.svg')),
+                light: Uri.file(context.asAbsolutePath('resources/icons/light/star-empty.svg'))
+            },
+            tooltip: 'Add to Starred Podcasts'
+        }
+
+        const unstarButton: QuickInputButton = {
+            iconPath: {
+                dark: Uri.file(context.asAbsolutePath('resources/icons/dark/star.svg')),
+                light: Uri.file(context.asAbsolutePath('resources/icons/light/star.svg'))
+            },
+            tooltip: 'Remove from Starred Podcasts'
+        }
+
         const items = getEpisodeItems(podcast)
         if (!items.some((item) => item.published === undefined)) {
             items.sort((a,b) => b.published! - a.published!)
@@ -291,7 +314,19 @@ export async function activate(context: ExtensionContext) {
         episodePicker.title = podcast.title
         episodePicker.placeholder = 'Pick an episode'
         episodePicker.items = items
-        episodePicker.buttons = [websiteButton, refreshButton]
+
+        const setButtons = (isStarred?: boolean) => {
+            const buttons: QuickInputButton[] = []
+            if (isStarred === undefined) {
+                isStarred = cfg.starred.some(f => f.url === feedUrl)
+            }
+            buttons.push(isStarred ? unstarButton : starButton)
+            buttons.push(websiteButton)
+            buttons.push(refreshButton)
+            episodePicker.buttons = buttons
+        }
+        setButtons()
+
         episodePicker.onDidTriggerButton(async btn => {
             if (btn == refreshButton) {
                 episodePicker.busy = true
@@ -307,6 +342,15 @@ export async function activate(context: ExtensionContext) {
                 episodePicker.items = getEpisodeItems(podcast)
             } else if (btn == websiteButton) {
                 env.openExternal(Uri.parse(podcast.homepageUrl))
+            } else if (btn == starButton) {
+                updateConfig({starred: [{
+                    title: podcast.title,
+                    url: feedUrl!
+                }].concat(cfg.starred)})
+                setButtons(true)
+            } else if (btn == unstarButton) {
+                updateConfig({starred: cfg.starred.filter(p => p.url !== feedUrl)})
+                setButtons(false)
             }
         })
         const episodePickerPromise = new Promise<EpisodeItem | undefined>((resolve, _) => {

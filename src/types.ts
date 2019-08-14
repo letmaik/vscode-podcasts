@@ -6,13 +6,13 @@ export interface SearchConfiguration {
     maximumLength: number
 }
 
-export interface Feed {
+export interface StarredFeed {
     title: string
     url: string
 }
 
 export interface Configuration {
-    feeds: Feed[]
+    starred: StarredFeed[]
     player?: string
     search: SearchConfiguration
 }

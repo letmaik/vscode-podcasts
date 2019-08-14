@@ -30,7 +30,7 @@
   },
   "extensionKind": "ui",
   "activationEvents": [
-    "onCommand:podcasts.play",
+    "onCommand:podcasts.showStarredPodcasts",
     "onCommand:podcasts.showDownloaded",
     "onCommand:podcasts.searchEpisodes",
     "onCommand:podcasts.searchPodcasts"
@@ -49,6 +49,11 @@
         "category": "Podcasts"
       },
       {
+        "command": "podcasts.showStarredPodcasts",
+        "title": "Show starred podcasts",
+        "category": "Podcasts"
+      },
+      {
         "command": "podcasts.showDownloaded",
         "title": "Show downloaded episodes",
         "category": "Podcasts"
@@ -64,11 +69,6 @@
         "title": "Open episode website",
         "category": "Podcasts",
         "enablement": "podcasts.playerStatus != STOPPED"
-      },
-      {
-        "command": "podcasts.play",
-        "title": "Play",
-        "category": "Podcasts"
       },
       {
         "command": "podcasts.pause",
@@ -116,9 +116,9 @@
     "configuration": {
       "title": "Podcasts",
       "properties": {
-        "podcasts.feeds": {
+        "podcasts.starred": {
           "type": "array",
-          "description": "Podcast feeds available via the Play command.",
+          "description": "Starred Podcasts.",
           "items": {
             "type": "object",
             "properties": {
