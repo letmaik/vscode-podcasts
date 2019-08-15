@@ -76,29 +76,27 @@ const HEADERS = {'X-ListenAPI-Key': LISTEN_API_KEY}
 
 export class ListenNotes {
     private redirectCache = new Map<string,string>()
-    private cache: LRU<string,any>
+    private responseCache = new LRU<string,any>({
+        max: 100,
+        maxAge: 1000 * 60 * 60 // 1h
+    })
 
     constructor(private log: (msg: string) => void) {
-        const lruCacheOptions = {
-            max: 100,
-            maxAge: 1000 * 60 * 10 // 10 min
-        }
-        this.cache = new LRU(lruCacheOptions)
     }
 
     async searchPodcasts(query: string, opts: SearchOptions): Promise<SearchResult<PodcastResult>>  {
         const url = `https://listen-api.listennotes.com/api/v2/search?q=${encodeURIComponent(query)}&` +
             `sort_by_date=${opts.sortByDate ? '1' : '0'}&type=podcast&offset=${opts.offset}&` +
             `genre_ids=${getGenreIdsParam(opts.genres)}&language=${opts.language}`
-        const cached = this.cache.get(url)
+        const cached = this.responseCache.get(url)
         if (cached) {
-            this.log(`Using cached Listen Notes API response`)
+            this.log(`Using cached Listen Notes API response: ${url}`)
             return cached
         }
         this.log(`Querying Listen Notes API: ${url}`)
         const data = await requestp({url, headers: HEADERS, json: true}) as SearchResult<PodcastResult>
         this.log(`Received ${data.count} of ${data.total} results`)
-        this.cache.set(url, data)
+        this.responseCache.set(url, data)
         return data
     }
 
@@ -107,15 +105,15 @@ export class ListenNotes {
             `sort_by_date=${opts.sortByDate ? '1' : '0'}&type=episode&offset=${opts.offset}&` +
             `len_min=${opts.minimumLength}&len_max=${opts.maximumLength}&` +
             `genre_ids=${getGenreIdsParam(opts.genres)}&language=${opts.language}`
-            const cached = this.cache.get(url)
+        const cached = this.responseCache.get(url)
         if (cached) {
-            this.log(`Using cached Listen Notes API response`)
+            this.log(`Using cached Listen Notes API response: ${url}`)
             return cached
         }
         this.log(`Querying Listen Notes API: ${url}`)
         const data = await requestp({url, headers: HEADERS, json: true}) as SearchResult<EpisodeResult>
         this.log(`Received ${data.count} of ${data.total} results`)
-        this.cache.set(url, data)
+        this.responseCache.set(url, data)
         return data
     }
 

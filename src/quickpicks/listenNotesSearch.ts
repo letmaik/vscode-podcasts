@@ -31,14 +31,18 @@ abstract class ListenNotesSearchQuickPick<TResultItem extends QuickPickItem, TSe
         pick.matchOnDescription = true
         pick.matchOnDetail = true
 
-        const onDidChangeValue = (query: string) => {
+        const onDidChangeValue = (query: string, immediate?: boolean) => {
             this.lastQuery = query
             pick.items = []
             if (!query) {
                 return
             }
             pick.busy = true
-            this.searchAndUpdateItems(query, 0)
+            if (immediate) {
+                this.doSearchAndUpdateItems(query, 0)
+            } else {
+                this.searchAndUpdateItems(query, 0)
+            }
         }
 
         pick.onDidChangeValue(onDidChangeValue)
@@ -65,7 +69,7 @@ abstract class ListenNotesSearchQuickPick<TResultItem extends QuickPickItem, TSe
         pick.show()
         if (this.initialQuery) {
             pick.value = this.initialQuery
-            onDidChangeValue(this.initialQuery)
+            onDidChangeValue(this.initialQuery, true)
         }
         const item = await pickerPromise
         if (!item) {
@@ -75,8 +79,7 @@ abstract class ListenNotesSearchQuickPick<TResultItem extends QuickPickItem, TSe
         return returnVal
     }
 
-    @debounce(500)
-    async searchAndUpdateItems(query: string, offset: number): Promise<void> {
+    async doSearchAndUpdateItems(query: string, offset: number): Promise<void> {
         let data: SearchResult<TSearchResultEntry>
         try {
             data = await this.search(query, offset)
@@ -98,6 +101,11 @@ abstract class ListenNotesSearchQuickPick<TResultItem extends QuickPickItem, TSe
         }
         
         this.quickpick.items = items
+    }
+
+    @debounce(500)
+    async searchAndUpdateItems(query: string, offset: number): Promise<void> {
+        this.doSearchAndUpdateItems(query, offset)
     }
 
     protected abstract async search(query: string, offset: number): Promise<SearchResult<TSearchResultEntry>>;

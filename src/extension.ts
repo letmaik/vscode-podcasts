@@ -246,10 +246,11 @@ export async function activate(context: ExtensionContext) {
             return
         }
         const feedUrl = feedPick.url
-        commands.executeCommand(NAMESPACE + '.play', feedUrl, NAMESPACE + '.showStarredPodcasts')
+        const resolveListenNotes = false
+        commands.executeCommand(NAMESPACE + '.play', feedUrl, resolveListenNotes, NAMESPACE + '.showStarredPodcasts')
     }))
 
-    disposables.push(commands.registerCommand(NAMESPACE + '.play', async (feedUrl: string, prevCmd?: string, prevCmdArg?: any) => {
+    disposables.push(commands.registerCommand(NAMESPACE + '.play', async (feedUrl: string, resolveListenNotes?: boolean, prevCmd?: string, prevCmdArg?: any) => {
         const getEpisodeItems = (podcast: PodcastMetadata) => {
             const items: EpisodeItem[] = Object.keys(podcast.episodes).map(guid => {
                 const episode = podcast.episodes[guid]
@@ -276,6 +277,10 @@ export async function activate(context: ExtensionContext) {
         episodePicker.placeholder = 'Loading...'
         episodePicker.busy = true
         episodePicker.show()
+
+        if (resolveListenNotes) {
+            feedUrl = await listenNotes.resolveRedirect(feedUrl)
+        }
 
         let podcast = await storage.fetchPodcast(feedUrl)
 
@@ -390,8 +395,8 @@ export async function activate(context: ExtensionContext) {
         if (!url) {
             return
         }
-        const realFeedUrl = await listenNotes.resolveRedirect(url)
-        commands.executeCommand(NAMESPACE + '.play', realFeedUrl, NAMESPACE + '.searchPodcasts', pick.lastQuery)
+        const resolveListenNotes = true
+        commands.executeCommand(NAMESPACE + '.play', url, resolveListenNotes, NAMESPACE + '.searchPodcasts', pick.lastQuery)
     }))
 
     disposables.push(commands.registerCommand(NAMESPACE + '.searchEpisodes', async (query?: string) => {
