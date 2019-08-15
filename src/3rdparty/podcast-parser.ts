@@ -79,7 +79,8 @@ export default async function parse(feedXML: string): Promise<Podcast> {
   const result: any = {
     categories: [],
     description: {},
-    owner: {}
+    owner: {},
+    episodes: []
   };
   var node: any = null;
 
@@ -201,9 +202,6 @@ export default async function parse(feedXML: string): Promise<Podcast> {
       node = node.parent;
   
       if (tmpEpisode && name === 'item') {
-        if (!result.episodes) {
-          result.episodes = [];
-        }
         // coalesce descriptions (no breaking change)
         let description = '';
         if (tmpEpisode.description) {
