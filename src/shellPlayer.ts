@@ -90,8 +90,8 @@ const PLAYER_COMMANDS: {[player: string]: CommandMap} = {
 type CommandInfoMap = {[cmd in ShellPlayerCommand]?: number}
 
 const MPLAYER_COMMAND_INFO: CommandInfoMap = {
-  [ShellPlayerCommand.SPEEDUP]: 0.1,
-  [ShellPlayerCommand.SLOWDOWN]: -0.1,
+  [ShellPlayerCommand.SPEEDUP]: 0.2,
+  [ShellPlayerCommand.SLOWDOWN]: -0.2,
   [ShellPlayerCommand.SKIP_FORWARD]: 30,
   [ShellPlayerCommand.SKIP_BACKWARD]: -15,
 }
