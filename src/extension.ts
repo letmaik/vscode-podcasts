@@ -1,4 +1,4 @@
-import { ExtensionContext, workspace, window, Disposable, commands, Uri, QuickPickItem, QuickInputButton, env } from 'vscode'
+import { ExtensionContext, workspace, window, Disposable, commands, Uri, QuickPickItem, QuickInputButton, env, QuickInputButtons } from 'vscode'
 
 import { NAMESPACE } from './constants'
 import { ShellPlayer, ShellPlayerCommand } from './shellPlayer';
@@ -246,10 +246,10 @@ export async function activate(context: ExtensionContext) {
             return
         }
         const feedUrl = feedPick.url
-        commands.executeCommand(NAMESPACE + '.play', feedUrl)
+        commands.executeCommand(NAMESPACE + '.play', feedUrl, NAMESPACE + '.showStarredPodcasts')
     }))
 
-    disposables.push(commands.registerCommand(NAMESPACE + '.play', async (feedUrl: string) => {
+    disposables.push(commands.registerCommand(NAMESPACE + '.play', async (feedUrl: string, prevCmd?: string, prevCmdArg?: any) => {
         const getEpisodeItems = (podcast: PodcastMetadata) => {
             const items: EpisodeItem[] = Object.keys(podcast.episodes).map(guid => {
                 const episode = podcast.episodes[guid]
@@ -269,6 +269,13 @@ export async function activate(context: ExtensionContext) {
             })
             return items
         }
+
+        const episodePicker = window.createQuickPick<EpisodeItem>()
+        episodePicker.ignoreFocusOut = true
+        episodePicker.title = 'Loading...'
+        episodePicker.placeholder = 'Loading...'
+        episodePicker.busy = true
+        episodePicker.show()
 
         let podcast = await storage.fetchPodcast(feedUrl)
 
@@ -309,11 +316,10 @@ export async function activate(context: ExtensionContext) {
             items.sort((a,b) => b.published! - a.published!)
         }
 
-        const episodePicker = window.createQuickPick<EpisodeItem>()
-        episodePicker.ignoreFocusOut = true
+        episodePicker.busy = false
         episodePicker.title = podcast.title
-        episodePicker.placeholder = 'Pick an episode'
         episodePicker.items = items
+        episodePicker.placeholder = 'Pick an episode'
 
         const setButtons = (isStarred?: boolean) => {
             const buttons: QuickInputButton[] = []
@@ -323,12 +329,18 @@ export async function activate(context: ExtensionContext) {
             buttons.push(isStarred ? unstarButton : starButton)
             buttons.push(websiteButton)
             buttons.push(refreshButton)
+            if (prevCmd) {
+                buttons.push(QuickInputButtons.Back)
+            }
             episodePicker.buttons = buttons
         }
         setButtons()
 
         episodePicker.onDidTriggerButton(async btn => {
-            if (btn == refreshButton) {
+            if (btn == QuickInputButtons.Back) {
+                commands.executeCommand(prevCmd!, prevCmdArg)
+                episodePicker.dispose()
+            } else if (btn == refreshButton) {
                 episodePicker.busy = true
                 try {
                     await storage.updatePodcast(feedUrl!)
@@ -363,7 +375,6 @@ export async function activate(context: ExtensionContext) {
                 episodePicker.dispose()
             })
         })
-        episodePicker.show()
         const pick = await episodePickerPromise
 
         if (!pick) {
@@ -373,18 +384,18 @@ export async function activate(context: ExtensionContext) {
         await player.play(feedUrl, pick.guid)
     }))
 
-    disposables.push(commands.registerCommand(NAMESPACE + '.searchPodcasts', async () => {
-        const pick = new ListenNotesPodcastSearchQuickPick(cfg.search, listenNotes, log)
+    disposables.push(commands.registerCommand(NAMESPACE + '.searchPodcasts', async (query?: string) => {
+        const pick = new ListenNotesPodcastSearchQuickPick(cfg.search, listenNotes, query, log)
         const url = await pick.show()
         if (!url) {
             return
         }
         const realFeedUrl = await listenNotes.resolveRedirect(url)
-        commands.executeCommand(NAMESPACE + '.play', realFeedUrl)
+        commands.executeCommand(NAMESPACE + '.play', realFeedUrl, NAMESPACE + '.searchPodcasts', pick.lastQuery)
     }))
 
-    disposables.push(commands.registerCommand(NAMESPACE + '.searchEpisodes', async () => {
-        const pick = new ListenNotesEpisodeSearchQuickPick(cfg.search, listenNotes, log)
+    disposables.push(commands.registerCommand(NAMESPACE + '.searchEpisodes', async (query?: string) => {
+        const pick = new ListenNotesEpisodeSearchQuickPick(cfg.search, listenNotes, query, log)
         const episode = await pick.show()
         if (!episode) {
             return

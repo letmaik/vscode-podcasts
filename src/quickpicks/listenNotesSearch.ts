@@ -15,8 +15,9 @@ class LoadMoreItem implements QuickPickItem {
 abstract class ListenNotesSearchQuickPick<TResultItem extends QuickPickItem, TSearchResultEntry, TReturnValue> {
     private quickpick: QuickPick<TResultItem | LoadMoreItem>
     private items: TResultItem[]
+    public lastQuery = ''
 
-    constructor(private title: string, protected log: (msg: string) => void) {
+    constructor(private title: string, private initialQuery: string | undefined, protected log: (msg: string) => void) {
     }
 
     async show(): Promise<TReturnValue | undefined> {
@@ -30,14 +31,17 @@ abstract class ListenNotesSearchQuickPick<TResultItem extends QuickPickItem, TSe
         pick.matchOnDescription = true
         pick.matchOnDetail = true
 
-        pick.onDidChangeValue(query => {
+        const onDidChangeValue = (query: string) => {
+            this.lastQuery = query
             pick.items = []
             if (!query) {
                 return
             }
             pick.busy = true
             this.searchAndUpdateItems(query, 0)
-        })
+        }
+
+        pick.onDidChangeValue(onDidChangeValue)
 
         const pickerPromise = new Promise<TResultItem | undefined>((resolve, _) => {
             pick.onDidAccept(() => {
@@ -59,6 +63,10 @@ abstract class ListenNotesSearchQuickPick<TResultItem extends QuickPickItem, TSe
             })
         })
         pick.show()
+        if (this.initialQuery) {
+            pick.value = this.initialQuery
+            onDidChangeValue(this.initialQuery)
+        }
         const item = await pickerPromise
         if (!item) {
             return
@@ -106,8 +114,8 @@ interface PodcastItem extends QuickPickItem {
 export class ListenNotesPodcastSearchQuickPick 
         extends ListenNotesSearchQuickPick<PodcastItem, PodcastResult, string> {
     constructor(private cfg: SearchConfiguration, private listenNotes: ListenNotes, 
-                log: (msg: string) => void) {
-        super('Search podcasts using Listen Notes', log)
+                initialQuery: string | undefined, log: (msg: string) => void) {
+        super('Search podcasts using Listen Notes', initialQuery, log)
     }
 
     protected async search(query: string, offset: number): Promise<SearchResult<PodcastResult>> {
@@ -153,8 +161,8 @@ interface EpisodeItem extends QuickPickItem {
 export class ListenNotesEpisodeSearchQuickPick
         extends ListenNotesSearchQuickPick<EpisodeItem, EpisodeResult, EpisodeReturnValue> {
     constructor(private cfg: SearchConfiguration, private listenNotes: ListenNotes, 
-                log: (msg: string) => void) {
-        super('Search episodes using Listen Notes', log)
+                initialQuery: string | undefined, log: (msg: string) => void) {
+        super('Search episodes using Listen Notes', initialQuery, log)
     }
 
     protected async search(query: string, offset: number): Promise<SearchResult<EpisodeResult>> {
