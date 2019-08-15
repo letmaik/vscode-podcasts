@@ -324,7 +324,7 @@ export async function activate(context: ExtensionContext) {
         episodePicker.busy = false
         episodePicker.title = podcast.title
         episodePicker.items = items
-        episodePicker.placeholder = 'Pick an episode'
+        episodePicker.placeholder = 'Pick an episode to play'
 
         const setButtons = (isStarred?: boolean) => {
             const buttons: QuickInputButton[] = []
