@@ -13,7 +13,7 @@ export interface StarredFeed {
 
 export interface Configuration {
     starred: StarredFeed[]
-    player?: string
+    playerPath?: string
     search: SearchConfiguration
 }
 

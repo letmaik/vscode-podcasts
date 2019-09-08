@@ -159,9 +159,9 @@
             }
           ]
         },
-        "podcasts.player": {
+        "podcasts.playerPath": {
           "type": "string",
-          "description": "Path to audio player executable"
+          "description": "Custom path to audio player executable (supported: mplayer, play, mpg123, mpg321, afplay). Note: On Windows, a bundled player based on PowerShell is used by default."
         },
         "podcasts.search.sortByDate": {
           "type": "boolean",
@@ -255,6 +255,7 @@
           "default": [
             "Technology"
           ],
+          "uniqueItems": true,
           "items": {
             "type": "string",
             "enum": [

@@ -34,7 +34,7 @@ function getConfig(): Configuration {
     const searchCfg = workspace.getConfiguration('podcasts.search')
     return {
         starred: rootCfg.get<StarredFeed[]>('starred')!,
-        player: rootCfg.get<string>('player'),
+        playerPath: rootCfg.get<string>('playerPath'),
         search: {
             genres: searchCfg.get<string[]>('genres')!,
             sortByDate: searchCfg.get<boolean>('sortByDate')!,
@@ -59,12 +59,12 @@ export async function activate(context: ExtensionContext) {
     const outputChannel = window.createOutputChannel('Podcasts')
     disposables.push(outputChannel)
 
-    const log = outputChannel.appendLine
+    const log = (msg: string) => outputChannel.appendLine(msg)
 
     let cfg = getConfig()
 
     const shellPlayer = new ShellPlayer({
-        playerPath: cfg.player,
+        playerPath: cfg.playerPath,
         supportDir: context.asAbsolutePath('extra')
     }, log)
 
@@ -88,7 +88,7 @@ export async function activate(context: ExtensionContext) {
         log('Config changed, reloading')
         cfg = getConfig()
         if (e.affectsConfiguration(NAMESPACE + '.player')) {
-            shellPlayer.setPlayerPath(cfg.player)
+            shellPlayer.setPlayerPath(cfg.playerPath)
         }
     }))
 
