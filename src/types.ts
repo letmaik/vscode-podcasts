@@ -6,13 +6,7 @@ export interface SearchConfiguration {
     maximumLength: number
 }
 
-export interface StarredFeed {
-    title: string
-    url: string
-}
-
 export interface Configuration {
-    starred: StarredFeed[]
     playerPath?: string
     search: SearchConfiguration
 }

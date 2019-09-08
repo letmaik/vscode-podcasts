@@ -116,49 +116,6 @@
     "configuration": {
       "title": "Podcasts",
       "properties": {
-        "podcasts.starred": {
-          "type": "array",
-          "description": "Starred Podcasts.",
-          "items": {
-            "type": "object",
-            "properties": {
-              "title": {
-                "type": "string",
-                "description": "Title of the podcast"
-              },
-              "url": {
-                "type": "string",
-                "description": "URL of the podcast feed"
-              }
-            },
-            "required": [
-              "title",
-              "url"
-            ]
-          },
-          "default": [
-            {
-              "title": "Developer Tea",
-              "url": "https://rss.simplecast.com/podcasts/363/rss"
-            },
-            {
-              "title": "Hanselminutes",
-              "url": "https://feeds.simplecast.com/gvtxUiIf"
-            },
-            {
-              "title": "Programming Throwdown",
-              "url": "http://feeds.feedburner.com/ProgrammingThrowdown"
-            },
-            {
-              "title": "The Changelog",
-              "url": "https://changelog.com/podcast/feed"
-            },
-            {
-              "title": "Ratchet and The Geek",
-              "url": "https://feeds.simplecast.com/k0fI37e5"
-            }
-          ]
-        },
         "podcasts.playerPath": {
           "type": "string",
           "description": "Custom path to audio player executable (supported: mplayer, play, mpg123, mpg321, afplay). Note: On Windows, a bundled player based on PowerShell is used by default."

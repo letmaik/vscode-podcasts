@@ -37,11 +37,33 @@ export interface PodcastMetadata {
     homepageUrl: string
     episodes: { [guid: string]: EpisodeMetadata }
     lastRefreshed: number // timestamp
+    starred: boolean
     downloaded: { [guid: string]: DownloadedEpisodeMetadata }
 }
 
 interface StorageMetadata {
     podcasts: { [rssUrl: string]: PodcastMetadata }
+}
+
+function getStarredDefault(title: string) {
+    return {
+        title: title,
+        homepageUrl: "",
+        episodes: {},
+        lastRefreshed: 0,
+        starred: true,
+        downloaded: {}
+    }
+}
+
+const DEFAULT_STORAGE_METADATA: StorageMetadata = {
+    podcasts: {
+        "https://rss.simplecast.com/podcasts/363/rss": getStarredDefault("Developer Tea"),
+        "https://feeds.simplecast.com/gvtxUiIf": getStarredDefault("Hanselminutes"),
+        "http://feeds.feedburner.com/ProgrammingThrowdown": getStarredDefault("Programming Throwdown"),
+        "https://changelog.com/podcast/feed": getStarredDefault("The Changelog"),
+        "https://feeds.simplecast.com/k0fI37e5": getStarredDefault("Ratchet and The Geek")
+    }
 }
 
 export class Storage {
@@ -62,7 +84,7 @@ export class Storage {
             const json = await readFile(this.metadataPath, 'utf-8')
             this.metadata = JSON.parse(json)
         } else {
-            this.metadata = {podcasts: {}}
+            this.metadata = DEFAULT_STORAGE_METADATA
         }
     }
 
@@ -77,6 +99,7 @@ export class Storage {
         const threshold = Date.now() - (1000 * 60 * 60 * 24 * 30) // 30 days
         const podcasts = this.metadata.podcasts
         const old = Object.entries(podcasts).filter(([_, podcast]) => 
+            !podcast.starred &&
             Object.keys(podcast.downloaded).length === 0 && podcast.lastRefreshed < threshold)
         for (const [url,_] of old) {
             this.log(`Purging old feed metadata for ${url}`)
@@ -97,6 +120,10 @@ export class Storage {
             throw new Error(`Podcast ${url} not found in storage`)
         }
         return this.metadata.podcasts[url]
+    }
+
+    getStarredPodcastUrls() {
+        return Object.keys(this.metadata.podcasts).filter(url => this.getPodcast(url).starred)
     }
 
     getEpisode(feedUrl: string, guid: string) {
@@ -158,7 +185,8 @@ export class Storage {
             homepageUrl: podcast.link,
             lastRefreshed: Date.now(),
             episodes: episodes,
-            downloaded: {}
+            downloaded: {},
+            starred: false
         }
 
         // handle paged feeds
@@ -238,6 +266,7 @@ export class Storage {
 
         if (old) {
             feed!.downloaded = old.downloaded
+            feed!.starred = old.starred
         }
 
         this.metadata.podcasts[url] = feed!
