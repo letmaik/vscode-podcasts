@@ -23,10 +23,10 @@ interface PodcastItem extends QuickPickItem {
     url: string
 }
 
-interface DownloadedEpisodeItem extends QuickPickItem {
+interface ListenedEpisodeItem extends QuickPickItem {
     feedUrl: string
     guid: string
-    downloadDate: number
+    lastPlayed: number
 }
 
 function getConfig(): Configuration {
@@ -176,30 +176,42 @@ export async function activate(context: ExtensionContext) {
         commands.executeCommand(NAMESPACE + '.' + pick.cmd)
     }))
 
-    disposables.push(commands.registerCommand(NAMESPACE + '.showDownloaded', async () => {
-        const items: DownloadedEpisodeItem[] = []
+    disposables.push(commands.registerCommand(NAMESPACE + '.showHistory', async () => {
+        const items: ListenedEpisodeItem[] = []
         const meta = storage.getMetadata()
-        for (const [feedUrl, podcast] of Object.entries(meta.podcasts)) {
-            const guids = Object.keys(podcast.downloaded)
+        
+        for (const feedUrl in meta.roaming.podcasts) {
+            const podcast = storage.getPodcast(feedUrl)
+            const podcastRoaming = podcast.roaming!
+            if (!podcast.local) {
+                // TODO fetch feed on the fly
+                continue
+            }
+            const guids = Object.keys(podcastRoaming.episodes)
             for (const guid of guids) {
-                const episode = podcast.episodes[guid]
-                const download = podcast.downloaded[guid]
-                const completed = download.completed ? '✓ | ' : ''
-                const playing = download.lastPosition ? '▶ ' + toHumanDuration(download.lastPosition) + ' | ' : ''
+                const episode = storage.getEpisode(feedUrl, guid)
+                const episodeRoaming = episode.roaming!
+                if (!episode.local) {
+                    // TODO feed may be outdated, update on the fly
+                    continue
+                }
+                const downloaded = storage.isEpisodeDownloaded(feedUrl, guid) ? ' | $(database)' : ''
+                const completed = episodeRoaming.completed ? '✓ | ' : ''
+                const playing = episodeRoaming.lastPosition ? '▶ ' + toHumanDuration(episodeRoaming.lastPosition) + ' | ' : ''
                 items.push({
-                    label: episode.title,
-                    description: episode.description,
-                    detail: completed + playing + toHumanDuration(episode.duration, 'Unknown duration') + 
-                        (episode.published ? ' | ' + toHumanTimeAgo(episode.published) : '') + 
-                        ' | ' + podcast.title,
+                    label: episode.local.title,
+                    description: episode.local.description,
+                    detail: completed + playing + toHumanDuration(episode.local.duration, 'Unknown duration') + 
+                        (episode.local.published ? ' | ' + toHumanTimeAgo(episode.local.published) : '') + 
+                        ' | ' + podcast.local.title + downloaded,
                     feedUrl: feedUrl,
                     guid: guid,
-                    downloadDate: download.date
+                    lastPlayed: episodeRoaming.lastPlayed || Date.now()
                 })
             }
         }
 
-        items.sort((a,b) => b.downloadDate - a.downloadDate)
+        items.sort((a,b) => b.lastPlayed - a.lastPlayed)
 
         const pick = await window.showQuickPick(items, {
             ignoreFocusOut: true,
@@ -215,15 +227,18 @@ export async function activate(context: ExtensionContext) {
 
     disposables.push(commands.registerCommand(NAMESPACE + '.showStarredPodcasts', async () => {
         const feedUrls = storage.getStarredPodcastUrls()
+        // TODO show progress
+        // TODO handle errors
+        await Promise.all(feedUrls.map(feedUrl => storage.fetchPodcast(feedUrl)))
         const feedItems: PodcastItem[] = feedUrls.map(feedUrl => {
             const podcast = storage.getPodcast(feedUrl)
             let detail = ''
-            const downloaded = Object.keys(podcast.downloaded).length
+            const downloaded = Object.keys(podcast.local!.downloaded).length
             if (downloaded > 0) {
                 detail = `$(database) ${downloaded}`
             }
             return {
-                label: podcast.title,
+                label: podcast.local!.title,
                 detail: detail,
                 url: feedUrl
             }
@@ -244,20 +259,21 @@ export async function activate(context: ExtensionContext) {
 
     disposables.push(commands.registerCommand(NAMESPACE + '.play', async (feedUrl: string, resolveListenNotes?: boolean, prevCmd?: string, prevCmdArg?: any) => {
         const getEpisodeItems = (podcast: PodcastMetadata) => {
-            const items: EpisodeItem[] = Object.keys(podcast.episodes).map(guid => {
-                const episode = podcast.episodes[guid]
-                const download = podcast.downloaded[guid]
-                const downloaded = download ? ' | $(database)' : ''
-                const completed = download && download.completed ?  '✓ | ' : ''
-                const playing = download && download.lastPosition ? '▶ ' + toHumanDuration(download.lastPosition) + ' | ' : ''
+            const items: EpisodeItem[] = Object.keys(podcast.local!.episodes).map(guid => {
+                const episode = storage.getEpisode(feedUrl, guid)
+                const episodeLocal = episode.local!
+                const downloaded = storage.isEpisodeDownloaded(feedUrl, guid) ? ' | $(database)' : ''
+                const completed = episode.roaming && episode.roaming.completed ? '✓ | ' : ''
+                const playing = episode.roaming && episode.roaming.lastPosition 
+                    ? '▶ ' + toHumanDuration(episode.roaming.lastPosition) + ' | ' : ''
                 return {
-                    label: episode.title,
-                    description: episode.description,
-                    detail: completed + playing + toHumanDuration(episode.duration, 'Unknown duration') + 
-                        (episode.published ? ' | ' + toHumanTimeAgo(episode.published) : '') +
+                    label: episodeLocal.title,
+                    description: episodeLocal.description,
+                    detail: completed + playing + toHumanDuration(episodeLocal.duration, 'Unknown duration') + 
+                        (episodeLocal.published ? ' | ' + toHumanTimeAgo(episodeLocal.published) : '') +
                         downloaded,
                     guid: guid,
-                    published: episode.published
+                    published: episodeLocal.published
                 }
             })
             return items
@@ -316,13 +332,13 @@ export async function activate(context: ExtensionContext) {
         }
 
         episodePicker.busy = false
-        episodePicker.title = podcast.title
+        episodePicker.title = podcast.local!.title
         episodePicker.items = items
         episodePicker.placeholder = 'Pick an episode to play'
 
         const setButtons = () => {
             const buttons: QuickInputButton[] = []
-            buttons.push(podcast.starred ? unstarButton : starButton)
+            buttons.push(storage.isStarredPodcast(feedUrl) ? unstarButton : starButton)
             buttons.push(websiteButton)
             buttons.push(refreshButton)
             if (prevCmd) {
@@ -349,14 +365,14 @@ export async function activate(context: ExtensionContext) {
                 podcast = storage.getPodcast(feedUrl!)
                 episodePicker.items = getEpisodeItems(podcast)
             } else if (btn == websiteButton) {
-                env.openExternal(Uri.parse(podcast.homepageUrl))
+                env.openExternal(Uri.parse(podcast.local!.homepageUrl))
             } else if (btn == starButton) {
-                podcast.starred = true
-                storage.saveMetadata()
+                storage.starPodcast(feedUrl, true)
+                storage.saveMetadata({roaming: true})
                 setButtons()
             } else if (btn == unstarButton) {
-                podcast.starred = false
-                storage.saveMetadata()
+                storage.starPodcast(feedUrl, false)
+                storage.saveMetadata({roaming: true})
                 setButtons()
             }
         })
@@ -397,13 +413,13 @@ export async function activate(context: ExtensionContext) {
         }
         const realFeedUrl = await listenNotes.resolveRedirect(episode.feedUrl)
         const podcast = await storage.fetchPodcast(realFeedUrl, episode.published)
-        let match = Object.entries(podcast.episodes).find(
+        let match = Object.entries(podcast.local!.episodes).find(
             ([_, ep]) => ep.title === episode.title)
         if (!match) {
             log(`Unable to match "${episode.title}" to an episode in ${realFeedUrl}, trying enclosure URL`)
             
             const realEnclosureUrl = await listenNotes.resolveRedirect(episode.enclosureUrl)
-            match = Object.entries(podcast.episodes).find(
+            match = Object.entries(podcast.local!.episodes).find(
                 ([_, ep]) => ep.enclosureUrl === realEnclosureUrl)
             if (!match) {
                 log(`Unable to match ${realEnclosureUrl} to an episode in ${realFeedUrl}`)

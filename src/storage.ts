@@ -15,7 +15,7 @@ const readFile = promisify(fs.readFile)
 const writeFile = promisify(fs.writeFile)
 const unlink = promisify(fs.unlink)
 
-export interface EpisodeMetadata {
+export interface LocalEpisodeMetadata {
     title: string
     description?: string
     homepageUrl?: string
@@ -24,82 +24,115 @@ export interface EpisodeMetadata {
     enclosureUrl: string
 }
 
-export interface DownloadedEpisodeMetadata {
+export interface LocalDownloadedEpisodeMetadata {
     filename: string
-    date: number // timestamp
-    completed: boolean
-    lastPosition?: number
 }
 
-export interface PodcastMetadata {
+export interface LocalPodcastMetadata {
     title: string
     description?: string
     homepageUrl: string
-    episodes: { [guid: string]: EpisodeMetadata }
+    episodes: { [guid: string]: LocalEpisodeMetadata }
     lastRefreshed: number // timestamp
+    downloaded: { [guid: string]: LocalDownloadedEpisodeMetadata }
+}
+
+export interface LocalStorageMetadata {
+    podcasts: { [rssUrl: string]: LocalPodcastMetadata }
+}
+
+export interface RoamingEpisodeMetadata {
+    completed: boolean
+    lastPosition?: number // seconds
+    lastPlayed?: number // timestamp
+}
+
+export interface RoamingPodcastMetadata {
     starred: boolean
-    downloaded: { [guid: string]: DownloadedEpisodeMetadata }
+    episodes: { [guid: string]: RoamingEpisodeMetadata }
 }
 
-interface StorageMetadata {
-    podcasts: { [rssUrl: string]: PodcastMetadata }
+export interface RoamingStorageMetadata {
+    podcasts: { [rssUrl: string]: RoamingPodcastMetadata }
 }
 
-function getStarredDefault(title: string) {
-    return {
-        title: title,
-        homepageUrl: "",
-        episodes: {},
-        lastRefreshed: 0,
-        starred: true,
-        downloaded: {}
-    }
+export interface StorageMetadata {
+    local: LocalStorageMetadata
+    roaming: RoamingStorageMetadata
 }
+
+export interface LocalRoaming<L,R> {
+    local?: L
+    roaming?: R
+}
+
+export type PodcastMetadata = LocalRoaming<LocalPodcastMetadata, RoamingPodcastMetadata>
+export type EpisodeMetadata = LocalRoaming<LocalEpisodeMetadata, RoamingEpisodeMetadata>
 
 const DEFAULT_STORAGE_METADATA: StorageMetadata = {
-    podcasts: {
-        "https://rss.simplecast.com/podcasts/363/rss": getStarredDefault("Developer Tea"),
-        "https://feeds.simplecast.com/gvtxUiIf": getStarredDefault("Hanselminutes"),
-        "http://feeds.feedburner.com/ProgrammingThrowdown": getStarredDefault("Programming Throwdown"),
-        "https://changelog.com/podcast/feed": getStarredDefault("The Changelog"),
-        "https://feeds.simplecast.com/k0fI37e5": getStarredDefault("Ratchet and The Geek")
+    local: {
+        podcasts: {}
+    },
+    roaming: {
+        podcasts: {
+            "https://rss.simplecast.com/podcasts/363/rss": { starred: true, episodes: {} },
+            "https://feeds.simplecast.com/gvtxUiIf": { starred: true, episodes: {} },
+            "http://feeds.feedburner.com/ProgrammingThrowdown": { starred: true, episodes: {} },
+            "https://changelog.com/podcast/feed": { starred: true, episodes: {} },
+            "https://feeds.simplecast.com/k0fI37e5": { starred: true, episodes: {} }
+        }
     }
 }
 
 export class Storage {
-    private metadataPath: string
+    private localMetadataPath: string
+    private roamingMetadataPath: string
     private metadata: StorageMetadata
     private enclosuresPath: string
 
     constructor(storagePath: string, private log: (msg: string) => void) {
-        this.metadataPath = path.join(storagePath, 'metadata.json')
+        this.localMetadataPath = path.join(storagePath, 'local.json')
+        // TODO allow to choose custom path for roaming metadata
+        this.roamingMetadataPath = path.join(storagePath, 'roaming.json')
         this.enclosuresPath = path.join(storagePath, 'enclosures')
         mkdirp(storagePath)
         mkdirp(this.enclosuresPath)
     }
 
     async loadMetadata() {
-        if (await exists(this.metadataPath)) {
-            this.log(`Loading metadata from ${this.metadataPath}`)
-            const json = await readFile(this.metadataPath, 'utf-8')
-            this.metadata = JSON.parse(json)
-        } else {
-            this.metadata = DEFAULT_STORAGE_METADATA
+        const meta = DEFAULT_STORAGE_METADATA
+        if (await exists(this.localMetadataPath)) {
+            this.log(`Loading local metadata from ${this.localMetadataPath}`)
+            const json = await readFile(this.localMetadataPath, 'utf-8')
+            meta.local = JSON.parse(json)
         }
+        if (await exists(this.roamingMetadataPath)) {
+            this.log(`Loading roaming metadata from ${this.roamingMetadataPath}`)
+            const json = await readFile(this.roamingMetadataPath, 'utf-8')
+            meta.roaming = JSON.parse(json)
+        }
+        this.metadata = meta
     }
 
-    async saveMetadata() {
-        this.purgeOldMetadata()
-        this.log(`Saving metadata to ${this.metadataPath}`)
-        const json = JSON.stringify(this.metadata, null, 1)
-        await writeFile(this.metadataPath, json, 'utf-8')
+    async saveMetadata(opts?: {local?: boolean, roaming?: boolean}) {
+        if (!opts || opts.local) {
+            this.purgeOldMetadata()
+            this.log(`Saving local metadata to ${this.localMetadataPath}`)
+            const jsonLocal = JSON.stringify(this.metadata.local, null, 1)
+            await writeFile(this.localMetadataPath, jsonLocal, 'utf-8')
+        }
+        if (!opts || opts.roaming) {
+            this.log(`Saving roaming metadata to ${this.roamingMetadataPath}`)
+            const jsonRoaming = JSON.stringify(this.metadata.roaming, null, 1)
+            await writeFile(this.roamingMetadataPath, jsonRoaming, 'utf-8')
+        }
     }
 
     purgeOldMetadata() {
         const threshold = Date.now() - (1000 * 60 * 60 * 24 * 30) // 30 days
-        const podcasts = this.metadata.podcasts
-        const old = Object.entries(podcasts).filter(([_, podcast]) => 
-            !podcast.starred &&
+        const podcasts = this.metadata.local.podcasts
+        const old = Object.entries(podcasts).filter(([feedUrl, podcast]) => 
+            !this.isStarredPodcast(feedUrl) &&
             Object.keys(podcast.downloaded).length === 0 && podcast.lastRefreshed < threshold)
         for (const [url,_] of old) {
             this.log(`Purging old feed metadata for ${url}`)
@@ -111,32 +144,40 @@ export class Storage {
         return this.metadata
     }
 
-    hasPodcast(url: string) {
-        return url in this.metadata.podcasts
+    hasLocalPodcast(url: string) {
+        return url in this.metadata.local.podcasts
     }
 
-    getPodcast(url: string) {
-        if (!this.hasPodcast(url)) {
-            throw new Error(`Podcast ${url} not found in storage`)
+    getPodcast(url: string): PodcastMetadata {
+        return {
+            local: this.metadata.local.podcasts[url],
+            roaming: this.metadata.roaming.podcasts[url]
         }
-        return this.metadata.podcasts[url]
+    }
+
+    getEpisode(feedUrl: string, guid: string): EpisodeMetadata {
+        const podcast = this.getPodcast(feedUrl)
+        return {
+            local: podcast.local ? podcast.local.episodes[guid] : undefined,
+            roaming: podcast.roaming ? podcast.roaming.episodes[guid] : undefined
+        }
     }
 
     getStarredPodcastUrls() {
-        return Object.keys(this.metadata.podcasts).filter(url => this.getPodcast(url).starred)
+        return Object.entries(this.metadata.roaming.podcasts)
+            .filter(([_, podcast]) => podcast.starred)
+            .map(([feedUrl, _]) => feedUrl)
     }
 
-    getEpisode(feedUrl: string, guid: string) {
-        const episode = this.getPodcast(feedUrl).episodes[guid]
-        if (!episode) {
-            throw new Error(`Episode ${feedUrl} ${guid} not found in storage`)
-        }
-        return episode
+    isStarredPodcast(feedUrl: string) {
+        const podcast = this.metadata.roaming.podcasts[feedUrl]
+        const starred = podcast && podcast.starred
+        return starred
     }
 
     async fetchPodcast(url: string, updateIfOlderThan: number | undefined = undefined) {
-        if (this.hasPodcast(url)) {
-            if (updateIfOlderThan && this.getPodcast(url).lastRefreshed < updateIfOlderThan) {
+        if (this.hasLocalPodcast(url)) {
+            if (updateIfOlderThan && this.getPodcast(url).local!.lastRefreshed < updateIfOlderThan) {
                 await this.updatePodcast(url)
             } else {
                 this.log(`Using cached podcast metadata for ${url}`)
@@ -163,7 +204,7 @@ export class Storage {
         }
     
         const podcast = await parsePodcast(data)
-        const episodes: { [guid: string]: EpisodeMetadata } = {}
+        const episodes: { [guid: string]: LocalEpisodeMetadata } = {}
         for (const episode of podcast.episodes) {
             if (!episode.enclosure) {
                 this.log(`Ignoring "${episode.title}" (GUID: ${episode.guid}), no enclosure found`)
@@ -179,14 +220,13 @@ export class Storage {
             }
         }
 
-        let feed: PodcastMetadata = {
+        let feed: LocalPodcastMetadata = {
             title: podcast.title,
             description: podcast.description.short || podcast.description.long,
             homepageUrl: podcast.link,
             lastRefreshed: Date.now(),
             episodes: episodes,
-            downloaded: {},
-            starred: false
+            downloaded: {}
         }
 
         // handle paged feeds
@@ -221,7 +261,7 @@ export class Storage {
         return url
     }
 
-    private arePagesOverlapping(page1: PodcastMetadata, page2: PodcastMetadata | undefined): boolean {
+    private arePagesOverlapping(page1: LocalPodcastMetadata, page2: LocalPodcastMetadata | undefined): boolean {
         if (!page2) {
             return false
         }
@@ -233,7 +273,7 @@ export class Storage {
         return false
     }
 
-    private appendPage(page1: PodcastMetadata, page2: PodcastMetadata | undefined): void {
+    private appendPage(page1: LocalPodcastMetadata, page2: LocalPodcastMetadata | undefined): void {
         if (!page2) {
             return
         }
@@ -243,11 +283,11 @@ export class Storage {
     }
 
     async updatePodcast(url: string) {
-        const old = this.metadata.podcasts[url]
+        const old = this.metadata.local.podcasts[url]
 
         this.log(`Updating podcast from ${url}`)
 
-        let feed: PodcastMetadata | undefined = undefined
+        let feed: LocalPodcastMetadata | undefined = undefined
         let nextPageUrl: string | undefined = url
         while (nextPageUrl) {
             const page = await this.loadPodcastFeed(nextPageUrl)
@@ -266,10 +306,9 @@ export class Storage {
 
         if (old) {
             feed!.downloaded = old.downloaded
-            feed!.starred = old.starred
         }
 
-        this.metadata.podcasts[url] = feed!
+        this.metadata.local.podcasts[url] = feed!
 
         const invalidGuids = Object.keys(feed!.downloaded).filter(guid => !(guid in feed!.episodes))
         for (const guid in invalidGuids) {
@@ -277,12 +316,18 @@ export class Storage {
             this.deleteEpisodeEnclosure(url, guid, true)
         }
 
-        this.saveMetadata()
+        this.saveMetadata({local: true})
+    }
+
+    isEpisodeDownloaded(feedUrl: string, guid: string) {
+        const podcast = this.getPodcast(feedUrl)
+        const downloaded = podcast.local ? guid in podcast.local.downloaded : false
+        return downloaded
     }
 
     async fetchEpisodeEnclosure(feedUrl: string, guid: string,
             onProgress?: (ratio: number) => void, token?: CancellationToken) {
-        const feed = await this.fetchPodcast(feedUrl)
+        const feed = (await this.fetchPodcast(feedUrl)).local!
         const episode = feed.episodes[guid]
         if (!(guid in feed.downloaded)) {
             let enclosureFilename: string
@@ -297,9 +342,7 @@ export class Storage {
             this.log(`Downloading ${episode.enclosureUrl} to ${enclosurePath}`)
             await downloadFile(episode.enclosureUrl, enclosurePath, onProgress, token)
             feed.downloaded[guid] = {
-                filename: enclosureFilename,
-                date: Date.now(),
-                completed: false
+                filename: enclosureFilename
             }
             if (episode.duration === undefined) {
                 try {
@@ -308,7 +351,7 @@ export class Storage {
                     this.log(`Unable to read duration from ${enclosurePath}`)
                 }
             }
-            this.saveMetadata()
+            this.saveMetadata({local: true})
         }
         const enclosureFilename = feed.downloaded[guid].filename
         const enclosurePath = path.join(this.enclosuresPath, enclosureFilename)
@@ -316,32 +359,58 @@ export class Storage {
     }
 
     async deleteEpisodeEnclosure(feedUrl: string, guid: string, skipMetadataSave=false) {
-        const feed = this.metadata.podcasts[feedUrl]
+        const feed = this.metadata.local.podcasts[feedUrl]
         const filename = feed.downloaded[guid].filename
         delete feed.downloaded[guid]
         const enclosurePath = path.join(this.enclosuresPath, filename)
         this.log(`Deleting downloaded episode ${enclosurePath}`)
         await unlink(enclosurePath)
         if (!skipMetadataSave) {
-            await this.saveMetadata()
+            await this.saveMetadata({local: true})
         }
     }
 
     getLastListeningPosition(feedUrl: string, guid: string) {
-        const meta = this.metadata.podcasts[feedUrl].downloaded[guid]
-        return meta.lastPosition ? meta.lastPosition : 0
+        const meta = this.getEpisode(feedUrl, guid)
+        return meta.roaming && meta.roaming.lastPosition ? meta.roaming.lastPosition : 0
+    }
+
+    starPodcast(feedUrl: string, star: boolean) {
+        const podcast = this.getOrCreateRoamingPodcast(feedUrl)
+        podcast.starred = star
     }
 
     async storeListeningStatus(feedUrl: string, guid: string, completed: boolean, position: number | undefined = undefined) {
-        // TODO move to episode metadata so that info is kept if download is deleted?
-        const meta = this.metadata.podcasts[feedUrl].downloaded[guid]
-        meta.completed = completed
-        meta.lastPosition = position
-        await this.saveMetadata()
+        const episode = this.getOrCreateRoamingEpisode(feedUrl, guid)
+        episode.completed = completed
+        episode.lastPosition = position
+        episode.lastPlayed = Date.now()
+        await this.saveMetadata({roaming: true})
+    }
+
+    private getOrCreateRoamingPodcast(feedUrl: string): RoamingPodcastMetadata {
+        const podcasts = this.metadata.roaming.podcasts
+        if (!(feedUrl in podcasts)) {
+            podcasts[feedUrl] = {
+                episodes: {},
+                starred: false
+            }
+        }
+        return podcasts[feedUrl]
+    }
+
+    private getOrCreateRoamingEpisode(feedUrl: string, guid: string): RoamingEpisodeMetadata {
+        const podcast = this.getOrCreateRoamingPodcast(feedUrl)
+        if (!(guid in podcast.episodes)) {
+            podcast.episodes[guid] = {
+                completed: false
+            }
+        }
+        return podcast.episodes[guid]
     }
 
     getEpisodeDuration(feedUrl: string, guid: string): number | undefined {
-        const duration = this.metadata.podcasts[feedUrl].episodes[guid].duration
+        const duration = this.getEpisode(feedUrl, guid).local!.duration
         return duration
     }
 }

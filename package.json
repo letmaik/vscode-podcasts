@@ -31,7 +31,7 @@
   "extensionKind": "ui",
   "activationEvents": [
     "onCommand:podcasts.showStarredPodcasts",
-    "onCommand:podcasts.showDownloaded",
+    "onCommand:podcasts.showHistory",
     "onCommand:podcasts.searchEpisodes",
     "onCommand:podcasts.searchPodcasts"
   ],
@@ -54,8 +54,8 @@
         "category": "Podcasts"
       },
       {
-        "command": "podcasts.showDownloaded",
-        "title": "Show downloaded episodes",
+        "command": "podcasts.showHistory",
+        "title": "Show listening history",
         "category": "Podcasts"
       },
       {

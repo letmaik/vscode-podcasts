@@ -86,10 +86,10 @@ export class Player {
             return
         }
         const episode = this.storage.getEpisode(this.currentEpisodeFeedUrl, this.currentEpisodeGuid!)
-        if (!episode.homepageUrl) {
+        if (!episode.local!.homepageUrl) {
             return
         }
-        return episode.homepageUrl
+        return episode.local!.homepageUrl
     }
 
     async openWebsite() {
