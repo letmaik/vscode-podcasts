@@ -3,7 +3,8 @@
 param (
     [Parameter(Mandatory=$true)][string]$path, # audio file
     [string]$inputConfigPath, # MPlayer-style input.conf file
-    [int]$ss = 0 # offset in seconds
+    [int]$ss = 0, # offset in seconds
+    [System.Uri]$thumbnailUrl = $null # displayed in System Media Transport Controls
 )
 
 $ErrorActionPreference = "Stop"
@@ -78,42 +79,71 @@ if ([System.Console]::IsInputRedirected) {
     }
 }
 
-Add-Type -AssemblyName PresentationCore
-$player = New-Object System.Windows.Media.MediaPlayer
-$player.Open($path)
-$player.Position = [System.TimeSpan]::FromSeconds($ss)
+# Import WinRT types
+$null = [Windows.Media.MediaPlaybackType, Windows.Media, ContentType = WindowsRuntime]
+$null = [Windows.Media.Core.MediaSource, Windows.Media.Core, ContentType = WindowsRuntime]
+$null = [Windows.Media.Playback.MediaPlaybackItem, Windows.Media.Playback, ContentType = WindowsRuntime]
+$null = [Windows.Media.Playback.MediaPlayer, Windows.Media.Playback, ContentType = WindowsRuntime]
+$null = [Windows.Media.Playback.MediaPlayerAudioCategory, Windows.Media.Playback, ContentType = WindowsRuntime]
+$null = [Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime]
+$null = [Windows.Storage.Streams.RandomAccessStreamReference, Windows.Storage.Streams, ContentType = WindowsRuntime]
+$null = [Windows.Storage.FileProperties.MusicProperties, Windows.Storage.FileProperties, ContentType = WindowsRuntime]
+
+# https://fleexlab.blogspot.com/2018/02/using-winrts-iasyncoperation-in.html
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+$asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
+        $_.Name -eq 'AsTask' -and
+        $_.GetParameters().Count -eq 1 -and
+        $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]
+function Await($WinRtTask, $ResultType) {
+    $asTask = $asTaskGeneric.MakeGenericMethod($ResultType)
+    $netTask = $asTask.Invoke($null, @($WinRtTask))
+    $netTask.Wait(-1) | Out-Null
+    $netTask.Result
+}
+
+$player = New-Object Windows.Media.Playback.MediaPlayer
+$playbackSession = $player.PlaybackSession
+
+$file = Await ([Windows.Storage.StorageFile]::GetFileFromPathAsync($path)) ([Windows.Storage.StorageFile])
+$source = [Windows.Media.Core.MediaSource]::CreateFromStorageFile($file)
+$playbackItem = New-Object Windows.Media.Playback.MediaPlaybackItem($source)
+
+# Integrate with System Media Transport Controls (SMTC)
+$musicProps = Await ($file.Properties.GetMusicPropertiesAsync()) ([Windows.Storage.FileProperties.MusicProperties])
+$displayProps = $playbackItem.GetDisplayProperties()
+$displayProps.Type = [Windows.Media.MediaPlaybackType]::Music
+if ($thumbnailUrl) {
+    $displayProps.Thumbnail = [Windows.Storage.Streams.RandomAccessStreamReference]::CreateFromUri($thumbnailUrl)
+}
+$displayProps.MusicProperties.Title = $musicProps.Title
+$displayProps.MusicProperties.Artist = $musicProps.Artist
+$displayProps.MusicProperties.AlbumArtist = $musicProps.AlbumArtist
+$displayProps.MusicProperties.TrackNumber = $musicProps.TrackNumber
+$playbackItem.ApplyDisplayProperties($displayProps)
+
+$player.Source = $playbackItem
+$player.AudioCategory = [Windows.Media.Playback.MediaPlayerAudioCategory]::Media
+$playbackSession.Position = [System.TimeSpan]::FromSeconds($ss)
 $player.Play()
 $paused = $false
-$duration = $null
+$duration = $musicProps.Duration
 
 function PrintStatusLine {
     # A:   4.3 (04.2) of 261.0 (04:21.0)  0.0%
-    $elapsedSecs = ("{0:f1}" -f $player.Position.TotalSeconds).replace(",",".")
-    $elapsedHuman = $player.Position
+    $elapsedSecs = ("{0:f1}" -f $playbackSession.Position.TotalSeconds).replace(",",".")
+    $elapsedHuman = $playbackSession.Position
     $durationSecs = ("{0:f1}" -f $duration.TotalSeconds).replace(",",".")
     $durationHuman = $duration
-    if ($player.SpeedRatio -eq 1.0) {
+    if ($playbackSession.PlaybackRate -eq 1.0) {
         $speedRatio = ''
     } else {
-        $speedRatio = ("{0:f2}x" -f $player.SpeedRatio).replace(",",".")
+        $speedRatio = ("{0:f2}x" -f $playbackSession.PlaybackRate).replace(",",".")
     }
     Write-Host "`rA: $elapsedSecs ($elapsedHuman) of $durationSecs ($durationHuman) 0.0% $speedRatio" -NoNewline
 }
 
 try {
-    $i = 0
-    do {
-        # Wait until NaturalDuration is available.
-        # This is also a proxy for the MediaOpened event.
-        # (events are not working for some reason)
-        $duration = $player.NaturalDuration.TimeSpan
-        Start-Sleep -Milliseconds 100
-        $i += 1
-        if ($i -gt 50) {
-            throw "Unable to play $path"
-        }
-    } while (!$duration)
-    
     while ($player.Position -lt $duration) {
         $key = ReadKey
         
@@ -122,13 +152,14 @@ try {
             switch ($cmd) {
                 # standard MPlayer commands
                 "seek" {
-                    $player.Position += [System.TimeSpan]::FromSeconds($val)
+                    $playbackSession.Position += [System.TimeSpan]::FromSeconds($val)
                 }
                 "speed_mult" {
-                    $player.SpeedRatio *= $val
+                    # TODO fix calculation
+                    $playbackSession.PlaybackRate *= $val
                 }
                 "speed_set" {
-                    $player.SpeedRatio = $val
+                    $playbackSession.PlaybackRate = $val
                 }
                 "pause" {
                     if ($paused) {
@@ -140,7 +171,7 @@ try {
                     }
                 }
                 "quit" {
-                    $player.Position = $duration
+                    $playbackSession.Position = $duration
                 }
                 # additional commands
                 "status" {
@@ -164,5 +195,5 @@ try {
     }
 } finally {
     # Clean-up in case we're not running in a separate shell that's killed.
-    $player.Close();
+    $player.Dispose()
 }
