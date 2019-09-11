@@ -1,3 +1,11 @@
+export interface PlayerConfiguration {
+    path?: string
+}
+
+export interface StorageConfiguration {
+    roamingPath?: string
+}
+
 export interface SearchConfiguration {
     genres: string[]
     sortByDate: boolean
@@ -7,7 +15,8 @@ export interface SearchConfiguration {
 }
 
 export interface Configuration {
-    playerPath?: string
+    player: PlayerConfiguration
+    storage: StorageConfiguration
     search: SearchConfiguration
 }
 

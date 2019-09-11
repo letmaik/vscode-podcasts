@@ -30,10 +30,16 @@ interface ListenedEpisodeItem extends QuickPickItem {
 }
 
 function getConfig(): Configuration {
-    const rootCfg = workspace.getConfiguration('podcasts')
+    const playerCfg = workspace.getConfiguration('podcasts.player')
+    const storageCfg = workspace.getConfiguration('podcasts.storage')
     const searchCfg = workspace.getConfiguration('podcasts.search')
     return {
-        playerPath: rootCfg.get<string>('playerPath'),
+        player: {
+            path: playerCfg.get<string>('path')
+        },
+        storage: {
+            roamingPath: storageCfg.get<string>('roamingPath'),
+        },
         search: {
             genres: searchCfg.get<string[]>('genres')!,
             sortByDate: searchCfg.get<boolean>('sortByDate')!,
@@ -56,11 +62,11 @@ export async function activate(context: ExtensionContext) {
     let cfg = getConfig()
 
     const shellPlayer = new ShellPlayer({
-        playerPath: cfg.playerPath,
+        playerPath: cfg.player.path,
         supportDir: context.asAbsolutePath('extra')
     }, log)
 
-    const storage = new Storage(context.globalStoragePath, log)
+    const storage = new Storage(context.globalStoragePath, cfg.storage.roamingPath, log)
     await storage.loadMetadata()
 
     const statusBar = new StatusBar(disposables)
@@ -76,11 +82,14 @@ export async function activate(context: ExtensionContext) {
         }
     }))
 
-    disposables.push(workspace.onDidChangeConfiguration(e => {
+    disposables.push(workspace.onDidChangeConfiguration(async e => {
         log('Config changed, reloading')
         cfg = getConfig()
         if (e.affectsConfiguration(NAMESPACE + '.player')) {
-            shellPlayer.setPlayerPath(cfg.playerPath)
+            shellPlayer.setPlayerPath(cfg.player.path)
+        }
+        if (e.affectsConfiguration(NAMESPACE + '.storage')) {
+            await storage.setRoamingPath(cfg.storage.roamingPath)
         }
     }))
 

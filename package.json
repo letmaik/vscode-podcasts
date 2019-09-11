@@ -116,9 +116,13 @@
     "configuration": {
       "title": "Podcasts",
       "properties": {
-        "podcasts.playerPath": {
+        "podcasts.player.path": {
           "type": "string",
           "description": "Custom path to audio player executable (supported: mplayer, play, mpg123, mpg321, afplay). Note: On Windows, a bundled player based on PowerShell is used by default."
+        },
+        "podcasts.storage.roamingPath": {
+          "type": "string",
+          "description": "Custom path to folder storing metadata about starred podcasts and listening history/state. Tip: Use a folder in Dropbox (or similar) to synchronize between devices."
         },
         "podcasts.search.sortByDate": {
           "type": "boolean",

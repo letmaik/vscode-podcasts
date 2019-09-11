@@ -90,13 +90,24 @@ export class Storage {
     private metadata: StorageMetadata
     private enclosuresPath: string
 
-    constructor(storagePath: string, private log: (msg: string) => void) {
+    constructor(private storagePath: string, roamingPath: string | undefined, private log: (msg: string) => void) {
         this.localMetadataPath = path.join(storagePath, 'local.json')
-        // TODO allow to choose custom path for roaming metadata
-        this.roamingMetadataPath = path.join(storagePath, 'roaming.json')
         this.enclosuresPath = path.join(storagePath, 'enclosures')
         mkdirp(storagePath)
         mkdirp(this.enclosuresPath)
+        this.setRoamingPath(roamingPath)
+    }
+
+    async setRoamingPath(roamingPath: string | undefined) {
+        // TODO move existing roaming metadata if folder changed
+        let newRoamingPath: string
+        if (roamingPath) {
+            newRoamingPath = roamingPath
+            await mkdirp(newRoamingPath)
+        } else {
+            newRoamingPath = this.storagePath
+        }
+        this.roamingMetadataPath = path.join(newRoamingPath, 'roaming.json')
     }
 
     async loadMetadata() {
