@@ -148,10 +148,14 @@ export class Player {
             }
 
             const duration = this.storage.getEpisodeDuration(feedUrl, guid)
+
+            const episode = this.storage.getEpisode(feedUrl, guid)
+            const thumbnailUrl = episode.local!.thumbnailUrl
             
             await this.shellPlayer.play(enclosurePath,
                 startPosition,
                 duration,
+                thumbnailUrl,
                 e => {
                     console.error(e)
                     window.showErrorMessage(e.message)

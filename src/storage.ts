@@ -19,6 +19,7 @@ export interface LocalEpisodeMetadata {
     title: string
     description?: string
     homepageUrl?: string
+    thumbnailUrl?: string
     duration?: number // seconds
     published?: number // timestamp
     enclosureUrl: string
@@ -225,6 +226,7 @@ export class Storage {
                 title: episode.title,
                 description: episode.description.primary || episode.description.alternate,
                 homepageUrl: episode.link,
+                thumbnailUrl: episode.image,
                 published: episode.published ? episode.published.getTime() : undefined,
                 duration: episode.duration ? episode.duration : undefined,
                 enclosureUrl: episode.enclosure.url

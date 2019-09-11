@@ -4,10 +4,16 @@ param (
     [Parameter(Mandatory=$true)][string]$path, # audio file
     [string]$inputConfigPath, # MPlayer-style input.conf file
     [int]$ss = 0, # offset in seconds
-    [System.Uri]$thumbnailUrl = $null # displayed in System Media Transport Controls
+    [string]$thumbnailUrl = $null # displayed in System Media Transport Controls
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($thumbnailUrl -and $thumbnailUrl -ne 'none') {
+    $thumbnailUrl = [System.Uri]$thumbnailUrl
+} else {
+    $thumbnailUrl = $null
+}
 
 # Mapping from MPlayer key names to .NET key names
 # https://docs.microsoft.com/en-us/dotnet/api/system.consolekey

@@ -42,6 +42,7 @@ const PLAYER_ARGS = {
     '-File', '%SUPPORT_DIR%' + path.sep + 'play.ps1',
     '-inputConfigPath', '%SUPPORT_DIR%' + path.sep + 'input.conf',
     '-ss', '%POSITION_S%',
+    '-thumbnailUrl', '%THUMBNAIL_URL%',
     '%PATH%'
   ],
   'play': [
@@ -192,7 +193,10 @@ export class ShellPlayer {
     return this.supportsCommands() && PLAYER_COMMANDS[this.playerName][ShellPlayerCommand.STATUS] !== undefined
   }
  
-  private getPlayerArgs(audioPath: string, startPosition: number) {
+  private getPlayerArgs(audioPath: string, startPosition: number, thumbnailUrl: string | undefined) {
+    if (!thumbnailUrl) {
+      thumbnailUrl = 'none'
+    }
     let args: string[] = []
     if (!PLAYER_ARGS[this.playerName]) {
       args.push(audioPath)
@@ -209,13 +213,16 @@ export class ShellPlayer {
         arg = arg.replace('%SUPPORT_DIR%', supportDir)
         arg = arg.replace('%POSITION_S%', startPosition)
         arg = arg.replace('%POSITION_HHMMSS%', startPositionHHMMSS)
+        arg = arg.replace('%THUMBNAIL_URL%', thumbnailUrl)
         args.push(arg)
       }
     }
     return args
   }
 
-  async play(audioPath: string, startPosition: number, duration: number | undefined, onError: (e: Error) => void): Promise<void> {
+  async play(audioPath: string, startPosition: number, duration: number | undefined,
+             thumbnailUrl: string | undefined,
+             onError: (e: Error) => void): Promise<void> {
     let options: SpawnOptions = {
       stdio: 'pipe',
       // Not generally needed, but required for mplayer on Windows to eat
@@ -252,7 +259,7 @@ export class ShellPlayer {
     this.startUnixTimestamp = Date.now()
     this.stopUnixTimestamp = undefined
 
-    const args = this.getPlayerArgs(audioPath, startPosition)
+    const args = this.getPlayerArgs(audioPath, startPosition, thumbnailUrl)
     this.log(`Running ${this.playerPath} ${args.join(' ')}`)
 
     if (!this.supportsStatusCommand()) {
