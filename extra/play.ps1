@@ -95,6 +95,10 @@ $null = [Windows.Media.Playback.MediaPlaybackState, Windows.Media.Playback, Cont
 $null = [Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime]
 $null = [Windows.Storage.Streams.RandomAccessStreamReference, Windows.Storage.Streams, ContentType = WindowsRuntime]
 $null = [Windows.Storage.FileProperties.MusicProperties, Windows.Storage.FileProperties, ContentType = WindowsRuntime]
+$null = [Windows.Storage.FileProperties.StorageItemThumbnail, Windows.Storage.FileProperties, ContentType = WindowsRuntime]
+$null = [Windows.Storage.FileProperties.ThumbnailMode, Windows.Storage.FileProperties, ContentType = WindowsRuntime]
+$null = [Windows.Storage.FileProperties.ThumbnailOptions, Windows.Storage.FileProperties, ContentType = WindowsRuntime]
+
 
 # https://fleexlab.blogspot.com/2018/02/using-winrts-iasyncoperation-in.html
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
@@ -117,12 +121,21 @@ $source = [Windows.Media.Core.MediaSource]::CreateFromStorageFile($file)
 $playbackItem = New-Object Windows.Media.Playback.MediaPlaybackItem($source)
 
 # Integrate with System Media Transport Controls (SMTC)
+$preferredThumbnailSize = 300
+$thumbnail = Await ($file.GetThumbnailAsync([Windows.Storage.FileProperties.ThumbnailMode]::MusicView,
+    $preferredThumbnailSize,
+    [Windows.Storage.FileProperties.ThumbnailOptions]::ReturnOnlyIfCached)) ([Windows.Storage.FileProperties.StorageItemThumbnail])
+if ($thumbnail) {
+    $thumbnailStream = [Windows.Storage.Streams.RandomAccessStreamReference]::CreateFromStream($thumbnail)
+} elseif ($thumbnailUrl) {
+    $thumbnailStream = [Windows.Storage.Streams.RandomAccessStreamReference]::CreateFromUri($thumbnailUrl)
+} else {
+    $thumbnailStream = $null
+}
 $musicProps = Await ($file.Properties.GetMusicPropertiesAsync()) ([Windows.Storage.FileProperties.MusicProperties])
 $displayProps = $playbackItem.GetDisplayProperties()
 $displayProps.Type = [Windows.Media.MediaPlaybackType]::Music
-if ($thumbnailUrl) {
-    $displayProps.Thumbnail = [Windows.Storage.Streams.RandomAccessStreamReference]::CreateFromUri($thumbnailUrl)
-}
+$displayProps.Thumbnail = $thumbnailStream
 $displayProps.MusicProperties.Title = $musicProps.Title
 $displayProps.MusicProperties.Artist = $musicProps.Artist
 $displayProps.MusicProperties.AlbumArtist = $musicProps.AlbumArtist
