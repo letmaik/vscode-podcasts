@@ -74,7 +74,7 @@ export class Player {
             return
         }
         this.log(`Storing listening status`)
-        if (this.shellPlayer.position === this.shellPlayer.duration) {
+        if (this.shellPlayer.position >= this.shellPlayer.duration - 10) {
             this.storage.storeListeningStatus(this.currentEpisodeFeedUrl, this.currentEpisodeGuid!, true)
         } else {
             this.storage.storeListeningStatus(this.currentEpisodeFeedUrl, this.currentEpisodeGuid!, false, this.shellPlayer.position)
