@@ -153,6 +153,9 @@ export class ShellPlayer {
   }
   
   private setStatus(v: ShellPlayerStatus) {
+    if (this._status == v) {
+      return
+    }
     this._status = v
     this._onStatusChange.fire(v)
   }
@@ -326,10 +329,13 @@ export class ShellPlayer {
     if (!matches) {
       return false
     }
-    const sendEvent = !this.currentPositionFromStatus
-    this.currentPositionFromStatus = parseFloat(matches.groups!['elapsed'])
-    if (sendEvent) {
+    const oldPositionFromStatus = this.currentPositionFromStatus
+    const newPositionFromStatus = parseFloat(matches.groups!['elapsed'])
+    this.currentPositionFromStatus = newPositionFromStatus
+    if (oldPositionFromStatus != newPositionFromStatus) {
       this.setStatus(ShellPlayerStatus.PLAYING)
+    } else {
+      this.setStatus(ShellPlayerStatus.PAUSED)
     }
     return true
   }

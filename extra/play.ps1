@@ -91,6 +91,7 @@ $null = [Windows.Media.Core.MediaSource, Windows.Media.Core, ContentType = Windo
 $null = [Windows.Media.Playback.MediaPlaybackItem, Windows.Media.Playback, ContentType = WindowsRuntime]
 $null = [Windows.Media.Playback.MediaPlayer, Windows.Media.Playback, ContentType = WindowsRuntime]
 $null = [Windows.Media.Playback.MediaPlayerAudioCategory, Windows.Media.Playback, ContentType = WindowsRuntime]
+$null = [Windows.Media.Playback.MediaPlaybackState, Windows.Media.Playback, ContentType = WindowsRuntime]
 $null = [Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime]
 $null = [Windows.Storage.Streams.RandomAccessStreamReference, Windows.Storage.Streams, ContentType = WindowsRuntime]
 $null = [Windows.Storage.FileProperties.MusicProperties, Windows.Storage.FileProperties, ContentType = WindowsRuntime]
@@ -132,7 +133,6 @@ $player.Source = $playbackItem
 $player.AudioCategory = [Windows.Media.Playback.MediaPlayerAudioCategory]::Media
 $playbackSession.Position = [System.TimeSpan]::FromSeconds($ss)
 $player.Play()
-$paused = $false
 $duration = $musicProps.Duration
 
 function PrintStatusLine {
@@ -168,12 +168,11 @@ try {
                     $playbackSession.PlaybackRate = $val
                 }
                 "pause" {
-                    if ($paused) {
+                    $state = $playbackSession.PlaybackState
+                    if ($state -eq [Windows.Media.Playback.MediaPlaybackState]::Paused) {
                         $player.Play()
-                        $paused = $false
                     } else {
                         $player.Pause()
-                        $paused = $true
                     }
                 }
                 "quit" {
