@@ -113,6 +113,28 @@
         "enablement": "podcasts.playerStatus == PLAYING || podcasts.playerStatus == PAUSED"
       }
     ],
+    "keybindings": [
+      {
+        "command": "podcasts.pause",
+        "key": "alt+p"
+      },
+      {
+        "command": "podcasts.skipBackward",
+        "key": "alt+oem_minus"
+      },
+      {
+        "command": "podcasts.skipForward",
+        "key": "alt+oem_plus"
+      },
+      {
+        "command": "podcasts.slowdown",
+        "key": "alt+oem_comma"
+      },
+      {
+        "command": "podcasts.speedup",
+        "key": "alt+oem_period"
+      }
+    ],
     "configuration": {
       "title": "Podcasts",
       "properties": {
