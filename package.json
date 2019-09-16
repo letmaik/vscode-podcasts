@@ -33,7 +33,9 @@
     "onCommand:podcasts.showStarredPodcasts",
     "onCommand:podcasts.showHistory",
     "onCommand:podcasts.searchEpisodes",
-    "onCommand:podcasts.searchPodcasts"
+    "onCommand:podcasts.searchPodcasts",
+    "onCommand:podcasts.exportAsOPML",
+    "onCommand:podcasts.importFromOPML"
   ],
   "main": "./dist/extension",
   "contributes": {
@@ -56,6 +58,16 @@
       {
         "command": "podcasts.showHistory",
         "title": "Show listening history",
+        "category": "Podcasts"
+      },
+      {
+        "command": "podcasts.exportAsOPML",
+        "title": "Export starred podcasts as OPML",
+        "category": "Podcasts"
+      },
+      {
+        "command": "podcasts.importFromOPML",
+        "title": "Import OPML as starred podcasts",
         "category": "Podcasts"
       },
       {
@@ -144,7 +156,7 @@
         },
         "podcasts.storage.roamingPath": {
           "type": "string",
-          "description": "Custom path to folder storing metadata about starred podcasts and listening history/state. Tip: Use a folder in Dropbox (or similar) to synchronize between devices."
+          "description": "Custom path to existing folder storing metadata about starred podcasts and listening history/state. Tip: Use a folder in Dropbox (or similar) to synchronize between devices."
         },
         "podcasts.search.sortByDate": {
           "type": "boolean",
@@ -292,6 +304,8 @@
     "find-exec": "^1.0.1",
     "lodash": "^4.17.10",
     "lru-cache": "^5.1.1",
+    "node-opml-parser": "^1.0.0",
+    "opml-generator": "^1.1.1",
     "request": "^2.88.0",
     "request-progress": "^3.0.0",
     "request-promise-native": "^1.0.7",

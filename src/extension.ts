@@ -1,14 +1,16 @@
-import { ExtensionContext, workspace, window, Disposable, commands, Uri, QuickPickItem, QuickInputButton, env, QuickInputButtons } from 'vscode'
+import { ExtensionContext, workspace, window, Disposable, commands, Uri, QuickPickItem, QuickInputButton, env, QuickInputButtons, ProgressOptions, ProgressLocation } from 'vscode'
 
 import { NAMESPACE } from './constants'
-import { ShellPlayer, ShellPlayerCommand } from './shellPlayer';
+import { ShellPlayer, ShellPlayerCommand } from './shellPlayer'
 import { ListenNotes } from './listenNotes'
-import { toHumanDuration, toHumanTimeAgo } from './util';
-import { Storage, PodcastMetadata } from './storage';
-import { Player } from './player';
-import { StatusBar } from './statusBar';
-import { Configuration, PlayerStatus } from './types';
-import { ListenNotesPodcastSearchQuickPick, ListenNotesEpisodeSearchQuickPick } from './quickpicks/listenNotesSearch';
+import { toHumanDuration, toHumanTimeAgo, readFile, writeFile } from './util'
+import { Storage, PodcastMetadata } from './storage'
+import { Player } from './player'
+import { StatusBar } from './statusBar'
+import { Configuration, PlayerStatus } from './types'
+import { ListenNotesPodcastSearchQuickPick, ListenNotesEpisodeSearchQuickPick } from './quickpicks/listenNotesSearch'
+import * as toOPML from 'opml-generator'
+import * as parseOPML from 'node-opml-parser'
 
 interface CommandItem extends QuickPickItem {
     cmd: string
@@ -89,7 +91,7 @@ export async function activate(context: ExtensionContext) {
             shellPlayer.setPlayerPath(cfg.player.path)
         }
         if (e.affectsConfiguration(NAMESPACE + '.storage')) {
-            await storage.setRoamingPath(cfg.storage.roamingPath)
+            storage.setRoamingPath(cfg.storage.roamingPath)
         }
     }))
 
@@ -264,6 +266,77 @@ export async function activate(context: ExtensionContext) {
         const feedUrl = feedPick.url
         const resolveListenNotes = false
         commands.executeCommand(NAMESPACE + '.play', feedUrl, resolveListenNotes, NAMESPACE + '.showStarredPodcasts')
+    }))
+
+    disposables.push(commands.registerCommand(NAMESPACE + '.exportAsOPML', async () => {
+        const feedUrls = storage.getStarredPodcastUrls()
+        // TODO show progress
+        // TODO handle errors
+        await Promise.all(feedUrls.map(feedUrl => storage.fetchPodcast(feedUrl)))
+        const uri = await window.showSaveDialog({})
+        if (!uri) {
+            return
+        }
+        const header = {
+            dateCreated: new Date()
+        }
+        const outlines = feedUrls.map(feedUrl => {
+            const podcast = storage.getPodcast(feedUrl)
+            return {
+                text: podcast.local!.title,
+                htmlUrl: podcast.local!.homepageUrl,
+                xmlUrl: feedUrl
+            }
+        })
+        const opml = toOPML(header, outlines)
+        await writeFile(uri.fsPath, opml)
+    }))
+
+    disposables.push(commands.registerCommand(NAMESPACE + '.importFromOPML', async () => {
+        const uris = await window.showOpenDialog({})
+        if (!uris || uris.length === 0) {
+            return
+        }
+        const path = uris[0].fsPath
+        const str = await readFile(path, 'utf-8')
+        const items = await new Promise<any[]>((resolve, reject) => {
+            parseOPML(str, (err, items) => {
+                if (err) {
+                    reject(err)
+                } else {
+                    resolve(items)
+                }
+            })
+        })
+        const progressOpts: ProgressOptions = {
+            cancellable: false,
+            location: ProgressLocation.Notification,
+            title: 'Importing podcasts...'
+        }
+        let failed = false 
+        await window.withProgress(progressOpts, async (progress, token) => {
+            for (const item of items) {
+                progress.report({
+                    increment: 1 / items.length * 100
+                })
+                const feedUrl = item.feedUrl as string
+                try {
+                    await storage.fetchPodcast(feedUrl)
+                } catch (e) {
+                    log(`Feed ${feedUrl} (${item.title}) could not be loaded, see error above`)
+                    failed = true
+                    continue
+                }
+                storage.starPodcast(feedUrl, true)
+            }
+        })
+        storage.saveMetadata()
+        if (failed) {
+            window.showWarningMessage(`Some podcasts failed to import, see log for details.`)
+            outputChannel.show()
+        } else {
+            window.showInformationMessage(`All podcasts successfully imported!`)
+        }
     }))
 
     disposables.push(commands.registerCommand(NAMESPACE + '.play', async (feedUrl: string, resolveListenNotes?: boolean, prevCmd?: string, prevCmdArg?: any) => {

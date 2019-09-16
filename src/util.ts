@@ -9,6 +9,8 @@ import { CancellationToken } from 'vscode';
 
 const copyFile = promisify(fs.copyFile)
 const unlink = promisify(fs.unlink)
+export const readFile = promisify(fs.readFile)
+export const writeFile = promisify(fs.writeFile)
 const tmpName = promisify(tmp.tmpName)
 
 export function toHumanDuration(sec?: number, fallback?: string): string {

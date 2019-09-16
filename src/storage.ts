@@ -99,12 +99,11 @@ export class Storage {
         this.setRoamingPath(roamingPath)
     }
 
-    async setRoamingPath(roamingPath: string | undefined) {
+    setRoamingPath(roamingPath: string | undefined) {
         // TODO move existing roaming metadata if folder changed
         let newRoamingPath: string
         if (roamingPath) {
             newRoamingPath = roamingPath
-            await mkdirp(newRoamingPath)
         } else {
             newRoamingPath = this.storagePath
         }
@@ -117,11 +116,15 @@ export class Storage {
             this.log(`Loading local metadata from ${this.localMetadataPath}`)
             const json = await readFile(this.localMetadataPath, 'utf-8')
             meta.local = JSON.parse(json)
+        } else {
+            this.log(`No local metadata found at ${this.localMetadataPath}`)
         }
         if (await exists(this.roamingMetadataPath)) {
             this.log(`Loading roaming metadata from ${this.roamingMetadataPath}`)
             const json = await readFile(this.roamingMetadataPath, 'utf-8')
             meta.roaming = JSON.parse(json)
+        } else {
+            this.log(`No roaming metadata found at ${this.roamingMetadataPath}`)
         }
         this.metadata = meta
     }
