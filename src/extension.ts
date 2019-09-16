@@ -255,11 +255,53 @@ export async function activate(context: ExtensionContext) {
             }
         })
 
-        const feedPick = await window.showQuickPick(feedItems, {
-            ignoreFocusOut: true,
-            matchOnDescription: true,
-            placeHolder: 'Pick a podcast'
+        const importFromOPMLButton: QuickInputButton = {
+            iconPath: {
+                dark: Uri.file(context.asAbsolutePath('resources/icons/dark/folder-opened.svg')),
+                light: Uri.file(context.asAbsolutePath('resources/icons/light/folder-opened.svg'))
+            },
+            tooltip: 'Import from OPML'
+        }
+
+        const exportAsOPMLButton: QuickInputButton = {
+            iconPath: {
+                dark: Uri.file(context.asAbsolutePath('resources/icons/dark/save.svg')),
+                light: Uri.file(context.asAbsolutePath('resources/icons/light/save.svg'))
+            },
+            tooltip: 'Export as OPML'
+        }
+
+        const feedPicker = window.createQuickPick<PodcastItem>()
+        feedPicker.ignoreFocusOut = true
+        feedPicker.matchOnDescription = true
+        feedPicker.title = 'Starred podcasts'
+        feedPicker.placeholder = 'Pick a podcast'
+        feedPicker.items = feedItems
+        feedPicker.buttons = [importFromOPMLButton, exportAsOPMLButton]
+        
+        feedPicker.onDidTriggerButton(async btn => {
+            if (btn == importFromOPMLButton) {
+                commands.executeCommand(NAMESPACE + '.importFromOPML')
+            } else if (btn == exportAsOPMLButton) {
+                commands.executeCommand(NAMESPACE + '.exportAsOPML')
+            }
+            feedPicker.dispose()
         })
+
+        const episodePickerPromise = new Promise<PodcastItem | undefined>((resolve, _) => {
+            feedPicker.onDidAccept(() => {
+                resolve(feedPicker.selectedItems[0])
+                feedPicker.dispose()
+            })
+            feedPicker.onDidHide(() => {
+                resolve(undefined)
+                feedPicker.dispose()
+            })
+        })
+        
+        feedPicker.show()
+
+        const feedPick = await episodePickerPromise
         if (!feedPick) {
             return
         }
@@ -273,7 +315,10 @@ export async function activate(context: ExtensionContext) {
         // TODO show progress
         // TODO handle errors
         await Promise.all(feedUrls.map(feedUrl => storage.fetchPodcast(feedUrl)))
-        const uri = await window.showSaveDialog({})
+        const uri = await window.showSaveDialog({
+            saveLabel: 'Export as OPML',
+            filters: { 'OPML': ['opml'] }
+        })
         if (!uri) {
             return
         }
@@ -293,21 +338,31 @@ export async function activate(context: ExtensionContext) {
     }))
 
     disposables.push(commands.registerCommand(NAMESPACE + '.importFromOPML', async () => {
-        const uris = await window.showOpenDialog({})
+        const uris = await window.showOpenDialog({
+            openLabel: 'Import from OPML',
+            filters: { 'OPML': ['opml'] }
+        })
         if (!uris || uris.length === 0) {
             return
         }
         const path = uris[0].fsPath
         const str = await readFile(path, 'utf-8')
-        const items = await new Promise<any[]>((resolve, reject) => {
-            parseOPML(str, (err, items) => {
-                if (err) {
-                    reject(err)
-                } else {
-                    resolve(items)
-                }
+        let items: any[]
+        try {
+            items = await new Promise<any[]>((resolve, reject) => {
+                parseOPML(str, (err, items) => {
+                    if (err) {
+                        reject(err)
+                    } else {
+                        resolve(items)
+                    }
+                })
             })
-        })
+        } catch (e) {
+            log(`Error reading OPML file ${path}: ${e}`)
+            window.showErrorMessage('Error reading OPML file')
+            return
+        }
         const progressOpts: ProgressOptions = {
             cancellable: false,
             location: ProgressLocation.Notification,
