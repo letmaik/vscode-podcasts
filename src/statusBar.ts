@@ -5,7 +5,7 @@ import { PlayerStatus, PlayerState } from "./types";
 
 export class StatusBar {
     private readonly textPrefix = '$(radio-tower) '
-    private readonly cmd = NAMESPACE + '.main'
+    private readonly cmd = NAMESPACE + '.showPlayerCommands'
 
     private statusBarItem: StatusBarItem
     private state: PlayerState = {

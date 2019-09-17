@@ -116,7 +116,7 @@ export async function activate(context: ExtensionContext) {
     registerPlayerCommand('slowdown', async p => p.slowdown())
     registerPlayerCommand('speedup', async p => p.speedup())
 
-    disposables.push(commands.registerCommand(NAMESPACE + '.main', async () => {
+    disposables.push(commands.registerCommand(NAMESPACE + '.showPlayerCommands', async () => {
         const items: CommandItem[] = []
         const status = player.status
         const supportsCmds = shellPlayer.supportsCommands()
@@ -226,7 +226,7 @@ export async function activate(context: ExtensionContext) {
 
         const pick = await window.showQuickPick(items, {
             ignoreFocusOut: true,
-            placeHolder: 'Pick an episode',
+            placeHolder: 'Pick an episode to play',
             matchOnDescription: true,
             matchOnDetail: true
         })
