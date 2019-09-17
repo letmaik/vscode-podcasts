@@ -35,7 +35,8 @@
     "onCommand:podcasts.searchEpisodes",
     "onCommand:podcasts.searchPodcasts",
     "onCommand:podcasts.exportAsOPML",
-    "onCommand:podcasts.importFromOPML"
+    "onCommand:podcasts.importFromOPML",
+    "onCommand:podcasts.addByFeedUrl"
   ],
   "main": "./dist/extension",
   "contributes": {
@@ -58,6 +59,11 @@
       {
         "command": "podcasts.showHistory",
         "title": "Show listening history",
+        "category": "Podcasts"
+      },
+      {
+        "command": "podcasts.addByFeedUrl",
+        "title": "Add starred podcast by feed URL",
         "category": "Podcasts"
       },
       {

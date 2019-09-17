@@ -2,7 +2,7 @@ The refresh.svg files in dark/ and light/ are unmodified copies from the
 extensions/git/resources/icons/{dark,light} folders within the Microsoft/vscode
 GitHub repository, see https://github.com/Microsoft/vscode/tree/master/extensions/git/resources/icons.
 
-The save.svg and folder-opened.svg files in dark/ and light/ are unmodified copies from https://github.com/microsoft/vscode-icons.
+The add.svg, save.svg, and folder-opened.svg files in dark/ and light/ are unmodified copies from https://github.com/microsoft/vscode-icons.
 
 The globe.svg and star.svg files in dark/ and light/ are from https://octicons.github.com/.
 

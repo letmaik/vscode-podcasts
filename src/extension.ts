@@ -236,6 +236,34 @@ export async function activate(context: ExtensionContext) {
         await player.play(pick.feedUrl, pick.guid)
     }))
 
+    disposables.push(commands.registerCommand(NAMESPACE + '.addByFeedUrl', async () => {
+        const feedUrl = await window.showInputBox({
+            placeHolder: 'http://...',
+            prompt: 'Enter a podcast RSS feed URL'
+        })
+        if (!feedUrl) {
+            return
+        }
+        const progressOpts: ProgressOptions = {
+            cancellable: false,
+            location: ProgressLocation.Notification,
+            title: 'Loading podcast feed...'
+        }
+        await window.withProgress(progressOpts, async (progress, token) => {
+            try {
+                await storage.fetchPodcast(feedUrl)
+            } catch (e) {
+                log(`Feed ${feedUrl} could not be loaded, see error above`)
+                window.showErrorMessage(`Feed failed to load, see log for details.`)
+                outputChannel.show()
+                return
+            }
+            storage.starPodcast(feedUrl, true)
+            storage.saveMetadata()
+            commands.executeCommand(NAMESPACE + '.showStarredPodcasts')
+        })
+    }))
+
     disposables.push(commands.registerCommand(NAMESPACE + '.showStarredPodcasts', async () => {
         const feedUrls = storage.getStarredPodcastUrls()
         // TODO show progress
@@ -254,6 +282,16 @@ export async function activate(context: ExtensionContext) {
                 url: feedUrl
             }
         })
+
+        feedItems.sort((a,b) => a.label.localeCompare(b.label))
+
+        const addByFeedUrlButton: QuickInputButton = {
+            iconPath: {
+                dark: Uri.file(context.asAbsolutePath('resources/icons/dark/add.svg')),
+                light: Uri.file(context.asAbsolutePath('resources/icons/light/add.svg'))
+            },
+            tooltip: 'Add via feed URL'
+        }
 
         const importFromOPMLButton: QuickInputButton = {
             iconPath: {
@@ -277,10 +315,12 @@ export async function activate(context: ExtensionContext) {
         feedPicker.title = 'Starred podcasts'
         feedPicker.placeholder = 'Pick a podcast'
         feedPicker.items = feedItems
-        feedPicker.buttons = [importFromOPMLButton, exportAsOPMLButton]
+        feedPicker.buttons = [addByFeedUrlButton, importFromOPMLButton, exportAsOPMLButton]
         
         feedPicker.onDidTriggerButton(async btn => {
-            if (btn == importFromOPMLButton) {
+            if (btn == addByFeedUrlButton) {
+                commands.executeCommand(NAMESPACE + '.addByFeedUrl')
+            } else if (btn == importFromOPMLButton) {
                 commands.executeCommand(NAMESPACE + '.importFromOPML')
             } else if (btn == exportAsOPMLButton) {
                 commands.executeCommand(NAMESPACE + '.exportAsOPML')
