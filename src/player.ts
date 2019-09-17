@@ -105,6 +105,10 @@ export class Player {
         await env.openExternal(Uri.parse(url))
     }
 
+    getFeedUrl() {
+        return this.currentEpisodeFeedUrl
+    }
+
     cancelDownload() {
         if (this.state.status !== PlayerStatus.DOWNLOADING) {
             window.showInformationMessage('No download in progress')

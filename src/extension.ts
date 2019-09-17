@@ -14,6 +14,7 @@ import * as parseOPML from 'node-opml-parser'
 
 interface CommandItem extends QuickPickItem {
     cmd: string
+    cmdArg?: any
 }
 
 interface EpisodeItem extends QuickPickItem {
@@ -128,6 +129,12 @@ export async function activate(context: ExtensionContext) {
             })
         }
         if (status !== PlayerStatus.STOPPED) {
+            const feedUrl = player.getFeedUrl()
+            items.push({
+                cmd: 'play',
+                cmdArg: feedUrl,
+                label: 'Show podcast episodes'
+            })
             const website = player.getWebsite()
             if (website) {
                 items.push({
@@ -184,7 +191,7 @@ export async function activate(context: ExtensionContext) {
         if (!pick) {
             return
         }
-        commands.executeCommand(NAMESPACE + '.' + pick.cmd)
+        commands.executeCommand(NAMESPACE + '.' + pick.cmd, pick.cmdArg)
     }))
 
     disposables.push(commands.registerCommand(NAMESPACE + '.showHistory', async () => {
