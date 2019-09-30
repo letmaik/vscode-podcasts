@@ -121,6 +121,7 @@ export async function activate(context: ExtensionContext) {
             // ignore changes by ourselves
             return
         }
+        log('External update to roaming metadata detected')
         storage.loadMetadata({roaming: true})
     })
     disposables.push(roamingPathWatcher.disposable)
