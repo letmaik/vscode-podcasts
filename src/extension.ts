@@ -1,4 +1,4 @@
-import { ExtensionContext, workspace, window, Disposable, commands, QuickPickItem } from 'vscode'
+import { ExtensionContext, workspace, window, Disposable, commands } from 'vscode'
 
 import { NAMESPACE, COMMANDS } from './constants'
 import { ShellPlayer } from './shellPlayer'
@@ -19,6 +19,7 @@ import { ShowHistoryCommand } from './commands/showHistory';
 import { ShowPodcastCommand } from './commands/showPodcast';
 import { PlayerCommand } from './commands/player';
 import { ShowPlayerCommandsCommand } from './commands/showPlayerCommands';
+import { FileWatcher } from './util';
 
 function getConfig(): Configuration {
     const playerCfg = workspace.getConfiguration(NAMESPACE + '.player')
@@ -112,6 +113,18 @@ export async function activate(context: ExtensionContext) {
     registerPlayerCommand(COMMANDS.SLOWDOWN, async p => p.slowdown())
     registerPlayerCommand(COMMANDS.SPEEDUP, async p => p.speedup())
 
+    // watch for file changes of roaming metadata, e.g. sync via Dropbox
+    const roamingPathWatcher = new FileWatcher(storage.getRoamingPath(), () => {
+        const lastSaved = storage.getRoamingMetadataLastSaved()
+        const now = new Date()
+        if (now.getTime() - lastSaved.getTime() < 5 * 1000) {
+            // ignore changes by ourselves
+            return
+        }
+        storage.loadMetadata({roaming: true})
+    })
+    disposables.push(roamingPathWatcher.disposable)
+
     disposables.push(workspace.onDidChangeConfiguration(async e => {
         log('Config changed, reloading')
         const affected = (section: string) => e.affectsConfiguration(`${NAMESPACE}.${section}`)
@@ -121,6 +134,8 @@ export async function activate(context: ExtensionContext) {
         }
         if (affected('storage')) {
             storage.setRoamingPath(cfg.storage.roamingPath)
+            storage.loadMetadata({roaming: true})
+            roamingPathWatcher.update(storage.getRoamingPath())
         }
         if (affected('search')) {
             searchPodcastsCmd.updateSearchConfiguration(cfg.search)

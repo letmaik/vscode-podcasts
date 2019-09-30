@@ -5,7 +5,8 @@ import * as tmp from 'tmp';
 import * as request from 'request';
 import * as requestProgress from 'request-progress';
 import mp3Duration = require('./3rdparty/mp3-duration.js')
-import { CancellationToken } from 'vscode';
+import { CancellationToken, Disposable } from 'vscode';
+import { debounce } from './3rdparty/git/decorators';
 
 const copyFile = promisify(fs.copyFile)
 const unlink = promisify(fs.unlink)
@@ -116,4 +117,34 @@ export async function getAudioDuration(audioPath: string): Promise<number> {
         durationCache.set(audioPath, duration)
     }
     return durationCache.get(audioPath)!
+}
+
+// Uses fs.watch until https://github.com/microsoft/vscode/issues/3025 lands.
+export class FileWatcher {
+    readonly disposable: Disposable
+    private watcher: fs.FSWatcher
+
+    constructor(filename: string, private onChange: () => void) {
+        this.update(filename)
+        this.disposable = new Disposable(() => this.watcher.close())
+    }
+
+    update(filename: string) {
+        if (this.watcher) {
+            this.watcher.close()
+        }
+        this.watcher = fs.watch(filename, {
+            persistent: false
+        }, (event: string) => {
+            if (event === 'change') {
+                this.onChangeDebounced()
+            }
+        })
+    }
+
+    // https://stackoverflow.com/a/18808697
+    @debounce(500)
+    private onChangeDebounced() {
+        this.onChange()
+    }
 }

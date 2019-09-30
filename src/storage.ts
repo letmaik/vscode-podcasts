@@ -90,6 +90,7 @@ export class Storage {
     private roamingMetadataPath: string
     private metadata: StorageMetadata
     private enclosuresPath: string
+    private roamingMetadataLastSaved = new Date(0)
 
     constructor(private storagePath: string, roamingPath: string | undefined, private log: (msg: string) => void) {
         this.localMetadataPath = path.join(storagePath, 'local.json')
@@ -110,21 +111,33 @@ export class Storage {
         this.roamingMetadataPath = path.join(newRoamingPath, 'roaming.json')
     }
 
-    async loadMetadata() {
-        const meta = DEFAULT_STORAGE_METADATA
-        if (await exists(this.localMetadataPath)) {
-            this.log(`Loading local metadata from ${this.localMetadataPath}`)
-            const json = await readFile(this.localMetadataPath, 'utf-8')
-            meta.local = JSON.parse(json)
-        } else {
-            this.log(`No local metadata found at ${this.localMetadataPath}`)
+    getRoamingPath() {
+        return this.roamingMetadataPath
+    }
+
+    getRoamingMetadataLastSaved() {
+        return this.roamingMetadataLastSaved
+    }
+
+    async loadMetadata(opts?: {local?: boolean, roaming?: boolean}) {
+        const meta = this.metadata || DEFAULT_STORAGE_METADATA
+        if (!opts || opts.local) {
+            if (await exists(this.localMetadataPath)) {
+                this.log(`Loading local metadata from ${this.localMetadataPath}`)
+                const json = await readFile(this.localMetadataPath, 'utf-8')
+                meta.local = JSON.parse(json)
+            } else {
+                this.log(`No local metadata found at ${this.localMetadataPath}`)
+            }
         }
-        if (await exists(this.roamingMetadataPath)) {
-            this.log(`Loading roaming metadata from ${this.roamingMetadataPath}`)
-            const json = await readFile(this.roamingMetadataPath, 'utf-8')
-            meta.roaming = JSON.parse(json)
-        } else {
-            this.log(`No roaming metadata found at ${this.roamingMetadataPath}`)
+        if (!opts || opts.roaming) {
+            if (await exists(this.roamingMetadataPath)) {
+                this.log(`Loading roaming metadata from ${this.roamingMetadataPath}`)
+                const json = await readFile(this.roamingMetadataPath, 'utf-8')
+                meta.roaming = JSON.parse(json)
+            } else {
+                this.log(`No roaming metadata found at ${this.roamingMetadataPath}`)
+            }
         }
         this.metadata = meta
     }
@@ -139,6 +152,7 @@ export class Storage {
         if (!opts || opts.roaming) {
             this.log(`Saving roaming metadata to ${this.roamingMetadataPath}`)
             const jsonRoaming = JSON.stringify(this.metadata.roaming, null, 1)
+            this.roamingMetadataLastSaved = new Date()
             await writeFile(this.roamingMetadataPath, jsonRoaming, 'utf-8')
         }
     }
