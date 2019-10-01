@@ -33,4 +33,5 @@ export interface PlayerState {
     downloadProgress?: number,
     duration?: number,
     elapsed?: number
+    speed?: number
 }

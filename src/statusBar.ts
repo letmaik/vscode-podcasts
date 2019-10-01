@@ -1,6 +1,6 @@
 import { StatusBarItem, window, StatusBarAlignment, Disposable } from "vscode";
 import { NAMESPACE } from "./constants";
-import { toHumanDuration } from "./util";
+import { toHumanDuration, toFixed } from "./util";
 import { PlayerStatus, PlayerState } from "./types";
 
 export class StatusBar {
@@ -40,7 +40,11 @@ export class StatusBar {
             this.text = 'Opening...'
         } else if (state.duration && state.elapsed) {
             const remaining = state.duration - state.elapsed
-            this.text = toHumanDuration(remaining) + ' remaining'
+            let speed = ''
+            if (state.speed && Math.abs(state.speed - 1.0) > 0.05) {
+                speed = ' | ' + toFixed(state.speed, 1) + 'x'
+            }
+            this.text = toHumanDuration(remaining) + ' left' + speed
         }
 
         this.state = state

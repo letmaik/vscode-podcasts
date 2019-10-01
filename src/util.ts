@@ -54,6 +54,12 @@ export function toHumanTimeAgo(timestamp: number) {
     return Math.round(years) + ` year${plural} ago`
 }
 
+// https://stackoverflow.com/a/661757
+export function toFixed(value: number, precision: number): string {
+    var power = Math.pow(10, precision)
+    return (Math.round(value * power) / power).toFixed(precision)
+}
+
 export async function downloadFile(url: string, path: string, 
         onProgress?: (ratio: number) => void, token?: CancellationToken): Promise<void> {
     const tmpPath = await tmpName({})

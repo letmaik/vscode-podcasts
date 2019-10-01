@@ -48,7 +48,8 @@ export class Player {
                     this.state = {
                         status: PlayerStatus.PLAYING,
                         duration: this.shellPlayer.duration,
-                        elapsed: this.shellPlayer.position
+                        elapsed: this.shellPlayer.position,
+                        speed: this.shellPlayer.speed
                     }
                 }
                 updateState()

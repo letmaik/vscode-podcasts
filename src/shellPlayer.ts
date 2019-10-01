@@ -102,8 +102,9 @@ const PLAYER_COMMAND_INFO: {[player: string]: CommandInfoMap} = {
   'powershell': MPLAYER_COMMAND_INFO
 }
 
-// A:  52.5 (52.4) of 1863.0 (31:03.0)  0.0%
-const MPLAYER_STATUS_REGEX = /A:\s+(?<elapsed>[\d\.]+)\s+/
+// A:  52.5 (52.4) of 1863.0 (31:03.0)  0.0% 1.2x
+// ("1.2x" is left out if speed is 1.0)
+const MPLAYER_STATUS_REGEX = /A:\s+(?<elapsed>[\d\.]+)\s+[^%]+%(\s+(?<speed>[\d\.]+)x)?/
 
 const PLAYER_STATUS_REGEX: {[player: string]: RegExp} = {
   'mplayer': MPLAYER_STATUS_REGEX,
@@ -146,6 +147,8 @@ export class ShellPlayer {
   private currentPositionFromStatus: number | undefined // s
   private startUnixTimestamp: number // ms
   private stopUnixTimestamp: number | undefined // ms
+
+  private currentSpeedFromStatus: number | undefined // ratio
 
   constructor(opts: ShellPlayerOptions, private log: (msg: string) => void) {
     this.supportDir = opts.supportDir
@@ -337,6 +340,8 @@ export class ShellPlayer {
     } else {
       this.setStatus(ShellPlayerStatus.PAUSED)
     }
+    const speed = matches.groups!['speed']
+    this.currentSpeedFromStatus = speed ? parseFloat(speed) : undefined
     return true
   }
 
@@ -394,6 +399,14 @@ export class ShellPlayer {
       return this.duration
     } else {
       return elapsed
+    }
+  }
+
+  get speed() {
+    if (this.currentSpeedFromStatus) {
+      return this.currentSpeedFromStatus
+    } else {
+      return 1.0
     }
   }
 }

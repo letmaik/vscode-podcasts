@@ -149,7 +149,7 @@ $player.Play()
 $duration = $musicProps.Duration
 
 function PrintStatusLine {
-    # A:   4.3 (04.2) of 261.0 (04:21.0)  0.0%
+    # A:   4.3 (04.2) of 261.0 (04:21.0)  0.0% 1.2x
     $elapsedSecs = ("{0:f1}" -f $playbackSession.Position.TotalSeconds).replace(",",".")
     $elapsedHuman = $playbackSession.Position
     $durationSecs = ("{0:f1}" -f $duration.TotalSeconds).replace(",",".")
@@ -174,8 +174,10 @@ try {
                     $playbackSession.Position += [System.TimeSpan]::FromSeconds($val)
                 }
                 "speed_mult" {
-                    # TODO fix calculation
                     $playbackSession.PlaybackRate *= $val
+                }
+                "speed_incr" {
+                    $playbackSession.PlaybackRate += $val
                 }
                 "speed_set" {
                     $playbackSession.PlaybackRate = $val
