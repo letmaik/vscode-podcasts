@@ -30,6 +30,7 @@
   },
   "extensionKind": "ui",
   "activationEvents": [
+    "onCommand:podcasts.showMainCommands",
     "onCommand:podcasts.showStarredPodcasts",
     "onCommand:podcasts.showHistory",
     "onCommand:podcasts.searchEpisodes",
@@ -41,6 +42,11 @@
   "main": "./dist/extension",
   "contributes": {
     "commands": [
+      {
+        "command": "podcasts.showMainCommands",
+        "title": "Show start menu",
+        "category": "Podcasts"
+      },
       {
         "command": "podcasts.searchEpisodes",
         "title": "Search episodes using Listen Notes",
@@ -133,7 +139,7 @@
     ],
     "keybindings": [
       {
-        "command": "podcasts.showStarredPodcasts",
+        "command": "podcasts.showMainCommands",
         "key": "ctrl+alt+p"
       },
       {

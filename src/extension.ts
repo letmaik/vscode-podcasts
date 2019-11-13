@@ -20,6 +20,7 @@ import { ShowPodcastCommand } from './commands/showPodcast';
 import { PlayerCommand } from './commands/player';
 import { ShowPlayerCommandsCommand } from './commands/showPlayerCommands';
 import { FileWatcher } from './util';
+import { ShowMainCommandsCommand } from './commands/showMainCommands';
 
 function getConfig(): Configuration {
     const playerCfg = workspace.getConfiguration(NAMESPACE + '.player')
@@ -87,6 +88,7 @@ export async function activate(context: ExtensionContext) {
         disposables.push(commands.registerCommand(cmd.COMMAND, cmd.run, cmd))
     }
 
+    registerCommand(new ShowMainCommandsCommand(log))
     const searchPodcastsCmd = new SearchPodcastsCommand(cfg.search, listenNotes, log)
     const searchEpisodesCmd = new SearchEpisodesCommand(cfg.search, listenNotes, storage, player, log)
     registerCommand(searchPodcastsCmd)

@@ -10,6 +10,7 @@ export const COMMANDS = {
     ADD_BY_FEED_URL: cmd('addByFeedUrl'),
     IMPORT_FROM_OPML: cmd('importFromOPML'),
     EXPORT_AS_OPML: cmd('exportAsOPML'),
+    SHOW_MAIN_COMMANDS: cmd('showMainCommands'),
     SHOW_PLAYER_COMMANDS: cmd('showPlayerCommands'),
     SHOW_STARRED_PODCASTS: cmd('showStarredPodcasts'),
     SHOW_HISTORY: cmd('showHistory'),

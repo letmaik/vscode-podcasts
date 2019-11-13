@@ -1,4 +1,4 @@
-import { window, QuickPickItem } from "vscode";
+import { window, QuickPickItem, QuickInputButtons, commands } from "vscode";
 import { COMMANDS } from "../constants";
 import { Command } from "./command";
 import { Storage } from "../storage";
@@ -55,12 +55,36 @@ export class ShowHistoryCommand implements Command {
 
         items.sort((a,b) => b.lastPlayed - a.lastPlayed)
 
-        const pick = await window.showQuickPick(items, {
-            ignoreFocusOut: true,
-            placeHolder: 'Pick an episode to play',
-            matchOnDescription: true,
-            matchOnDetail: true
+        const picker = window.createQuickPick<ListenedEpisodeItem>()
+        picker.ignoreFocusOut = true
+        picker.matchOnDescription = true
+        picker.matchOnDetail = true
+        picker.title = 'Listening history'
+        picker.placeholder = 'Pick an episode to play'
+        picker.items = items
+        picker.buttons = [QuickInputButtons.Back]
+
+        picker.onDidTriggerButton(async btn => {
+            if (btn == QuickInputButtons.Back) {
+                commands.executeCommand(COMMANDS.SHOW_MAIN_COMMANDS)
+            }
+            picker.dispose()
         })
+
+        const pickerPromise = new Promise<ListenedEpisodeItem | undefined>((resolve, _) => {
+            picker.onDidAccept(() => {
+                resolve(picker.selectedItems[0])
+                picker.dispose()
+            })
+            picker.onDidHide(() => {
+                resolve(undefined)
+                picker.dispose()
+            })
+        })
+        
+        picker.show()
+        
+        const pick = await pickerPromise
         if (!pick) {
             return
         }

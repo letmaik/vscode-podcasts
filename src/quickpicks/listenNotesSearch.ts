@@ -1,8 +1,9 @@
-import { window, QuickPickItem, QuickPick } from "vscode";
+import { window, QuickPickItem, QuickPick, QuickInputButtons, commands } from "vscode";
 import { SearchResult, PodcastResult, ListenNotes, EpisodeResult } from "../listenNotes";
 import { toHumanTimeAgo, toHumanDuration } from "../util";
 import { SearchConfiguration } from "../types";
 import { debounce } from "../3rdparty/git/decorators";
+import { COMMANDS } from "../constants";
 
 class LoadMoreItem implements QuickPickItem {
     constructor(public query: string, public nextOffset: number, private total: number) {}
@@ -30,6 +31,14 @@ abstract class ListenNotesSearchQuickPick<TResultItem extends QuickPickItem, TSe
         //      otherwise lazy loading of more items is confusing and some results may be omitted
         pick.matchOnDescription = true
         pick.matchOnDetail = true
+        pick.buttons = [QuickInputButtons.Back]
+
+        pick.onDidTriggerButton(async btn => {
+            if (btn == QuickInputButtons.Back) {
+                commands.executeCommand(COMMANDS.SHOW_MAIN_COMMANDS)
+            }
+            pick.dispose()
+        })
 
         const onDidChangeValue = (query: string, immediate?: boolean) => {
             this.lastQuery = query

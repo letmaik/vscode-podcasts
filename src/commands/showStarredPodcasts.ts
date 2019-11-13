@@ -1,4 +1,4 @@
-import { window, QuickPickItem, QuickInputButton, Uri, commands } from "vscode";
+import { window, QuickPickItem, QuickInputButton, Uri, commands, QuickInputButtons } from "vscode";
 import { COMMANDS } from "../constants";
 import { Command } from "./command";
 import { Storage } from "../storage";
@@ -57,10 +57,12 @@ export class ShowStarredPodcastsCommand implements Command {
         feedPicker.title = 'Starred podcasts'
         feedPicker.placeholder = 'Pick a podcast'
         feedPicker.items = feedItems
-        feedPicker.buttons = [addByFeedUrlButton, importFromOPMLButton, exportAsOPMLButton]
+        feedPicker.buttons = [QuickInputButtons.Back, addByFeedUrlButton, importFromOPMLButton, exportAsOPMLButton]
         
         feedPicker.onDidTriggerButton(async btn => {
-            if (btn == addByFeedUrlButton) {
+            if (btn == QuickInputButtons.Back) {
+                commands.executeCommand(COMMANDS.SHOW_MAIN_COMMANDS)
+            } else if (btn == addByFeedUrlButton) {
                 commands.executeCommand(COMMANDS.ADD_BY_FEED_URL)
             } else if (btn == importFromOPMLButton) {
                 commands.executeCommand(COMMANDS.IMPORT_FROM_OPML)
