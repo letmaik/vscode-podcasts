@@ -190,7 +190,8 @@ export class ListenNotesEpisodeSearchQuickPick
             guid: episode.id,
             feedUrl: episode.rss,
             enclosureUrl: episode.audio,
-            published: episode.pub_date_ms
+            published: episode.pub_date_ms,
+            alwaysShow: true
         }
         return item
     }
