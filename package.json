@@ -133,6 +133,10 @@
     ],
     "keybindings": [
       {
+        "command": "podcasts.showStarredPodcasts",
+        "key": "ctrl+alt+p"
+      },
+      {
         "command": "podcasts.pause",
         "key": "alt+p"
       },
